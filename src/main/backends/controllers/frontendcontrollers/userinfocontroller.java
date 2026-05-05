@@ -38,10 +38,9 @@ import models.accounts.User;
 import javafx.collections.ObservableList;
 import Database.Inventory;
 import models.core.Item;
-import models.items.Art;
-import models.items.Electronics;
-import models.items.Vehicle;
+import models.items.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import java.io.IOException;
@@ -110,7 +109,7 @@ public class userinfocontroller {
     private Consumer<String> depositResultHandler;
     private Consumer<String> change_infoResultHandler;
     private Consumer<String> AdditemResultHandler;
-    private Consumer<String> auctionStartHandler;
+    private Consumer<String> auctionHandler;
     private volatile LocalDateTime endAt;
     private volatile String currentAuctionId;
     private Timeline timeline;
@@ -128,13 +127,14 @@ public class userinfocontroller {
         itemName.setEditable(false);
         baseprice.setEditable(false);
         increment.setEditable(false);
+        UserSession.getConnection().send(new FetchDataRequest("FETCH_INVENTORY"));
         loaduser_request();
         loadupcomingAuctions();
         subscribeDepositResult();
         subcribePlaceBid();
         subscribeAdditemResult();
         subscribechangeResult();
-        subscribeAuctionStart();
+        subscribeAuction();
         subscribeAuctionList();
         startUIUpdater();
     }
@@ -160,24 +160,14 @@ public class userinfocontroller {
             }
             String type = resolveMessageType(node);
             switch (type) {
-                case "AUCTION_ITEMS_RESPONSE" -> {
-                    AuctionItemsResponse msg;
-                    try {
-                        msg = mapper.readValue(json, AuctionItemsResponse.class);
-                        List<Item> items = msg.items.stream()
-                                .map(dto -> switch (dto.getType()) {
-                                    case "Electronics" -> new Electronics(dto.getId(), dto.getName(), dto.getPrice(), dto.getInfo());
-                                    case "Art" -> new Art(dto.getId(), dto.getName(), dto.getPrice(), dto.getInfo());
-                                    case "Vehicle" -> new Vehicle(dto.getId(), dto.getName(), dto.getPrice(), dto.getInfo());
-                                    default -> throw new IllegalArgumentException("Unknown type: " + dto.getType());
-                                })
-                                .toList();
+                case "INVENTORY_DATA" -> {
+                    List<Item> scheduled = parseItemsFromJson(node.path("scheduledItems"));
+                    List<Item> inProgress = parseItemsFromJson(node.path("inProgressItems"));
+                    List<Item> items = new ArrayList<>();
+                    items.addAll(scheduled);
+                    items.addAll(inProgress);
 
-                        Platform.runLater(() -> ITEMLIST.setItems(FXCollections.observableArrayList(items)));
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    }
-
+                    Platform.runLater(() -> upcomingAuctions.setAll(items));
                 }
             }
         });
@@ -270,35 +260,38 @@ public class userinfocontroller {
         });
     }
 
-    private void subscribeAuctionStart() {
-        auctionStartHandler = rawJson -> {
-            ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    private void subscribeAuction() {
+        auctionHandler = json -> {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode node = null;
             try {
-                ObjectNode node = (ObjectNode) mapper.readTree(rawJson);
-                String type = node.get("type").asText();
-                Platform.runLater(() -> {
-                    if (type.equals("START_AUCTION")) {
-                        StartAuctionMessage msg = null;
-                        try {
-                            msg = mapper.readValue(rawJson, StartAuctionMessage.class);
-                            baseprice.setText(Double.toString(msg.startingPrice));
-                            increment.setText(Double.toString(msg.bidIncrement));
-                            endAt = msg.endAt;
-                            itemName.setText(msg.itemName);
-                            currentAuctionId = msg.auctionId;
-                        } catch (JsonProcessingException e) {
-                            throw new RuntimeException(e);
-                        }
-                    } else {
-                        return;
-                    }
-                });
+                node = mapper.readTree(json);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
+            String type = resolveMessageType(node);
+            switch (type) {
+                case ("AUCTION_STATUS") -> {
+                    try {
+                        AuctionStatusMessage statusMsg = mapper.readValue(json, AuctionStatusMessage.class);
+                        Platform.runLater(() -> {
+                            if(statusMsg.status.equals("STARTED")) {
+                                //itemName.setText(statusMsg.auction.getItem().getName());
+                                //baseprice.setText(Double.toString(statusMsg.auction.getItem().getPrices()));
+                                increment.setText("0");
+                                Long epoch = statusMsg.endTimeEpoch - System.currentTimeMillis();
+                                updateClock(java.time.Duration.ofMillis(epoch));
+                            }
+                        });
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                }
+            };
         };
 
-        MessageBus.getInstance().subscribe(auctionStartHandler);
+        MessageBus.getInstance().subscribe(auctionHandler);
     }
 
     private void subscribeDepositResult() {
@@ -373,8 +366,17 @@ public class userinfocontroller {
         Double amount;
         try {
             amount = Double.parseDouble(amountStr);
+            if(amount < 0) {
+                throw new IllegalArgumentException("Invalid amount : amount must be positive");
+            }
+            if(amount < UserSession.getCurrentUser().getBalance()) {
+                throw new IllegalArgumentException("Invalid amount : your balance is not enough");
+            }
         } catch (NumberFormatException e) {
-            new Alert(Alert.AlertType.ERROR, "Invalid amount", ButtonType.OK).show();
+            new Alert(Alert.AlertType.ERROR, "Invalid amount : not numbers", ButtonType.OK).show();
+            return;
+        } catch (IllegalArgumentException e) {
+            new Alert(Alert.AlertType.ERROR, String.valueOf(e), ButtonType.OK).show();
             return;
         }
         String currentUserId = UserSession.getCurrentUser().getId();
@@ -477,33 +479,33 @@ public class userinfocontroller {
         AdditemResultHandler = rawJson -> {
             ObjectMapper mapper = new  ObjectMapper();
             try{
-               JsonNode node = mapper.readTree(rawJson);
-               String type =  node.get("type").asText();
-               Platform.runLater(()->{
-                   if (type.equals("add_item_OK") && node.has("payloadJson")) {
-                       String payloadJson = node.get("payloadJson").asText();
-                       Createitempayload payload =  new Gson().fromJson(payloadJson, Createitempayload.class);
-                       Gson gson = new Gson();
-                       String payloadjson = gson.toJson(payload);
-                       Message msg = new Message();
-                       msg.Id_user = UserSession.getCurrentUser().getId();
-                       msg.messageType = "additem";
-                       msg.payloadJson = payloadjson;
-                       String requestId = node.has("request_id") ? node.get("request_id").asText() : null;
+                JsonNode node = mapper.readTree(rawJson);
+                String type =  node.get("type").asText();
+                Platform.runLater(()->{
+                    if (type.equals("add_item_OK") && node.has("payloadJson")) {
+                        String payloadJson = node.get("payloadJson").asText();
+                        Createitempayload payload =  new Gson().fromJson(payloadJson, Createitempayload.class);
+                        Gson gson = new Gson();
+                        String payloadjson = gson.toJson(payload);
+                        Message msg = new Message();
+                        msg.Id_user = UserSession.getCurrentUser().getId();
+                        msg.messageType = "additem";
+                        msg.payloadJson = payloadjson;
+                        String requestId = node.has("request_id") ? node.get("request_id").asText() : null;
 
-                       try {
-                           myrequest.save_myrequest(msg, requestId);
-                           if (requestId != null) {
-                               AcceptedItem_info.add(requestId);
-                           }
-                       } catch (IOException e) {
-                           e.printStackTrace();
-                       }
-                   }
-                   List_AcceptedItem.setItems(AcceptedItem_info);// listview load item từ AcceptedItem_info
-                   // set up cell factory -> để tạo ra 1 dòng chứa nhiều loại icon và button tương tác
-                   List_AcceptedItem.setCellFactory(lv -> new CustomItemCell());
-               });
+                        try {
+                            myrequest.save_myrequest(msg, requestId);
+                            if (requestId != null) {
+                                AcceptedItem_info.add(requestId);
+                            }
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    List_AcceptedItem.setItems(AcceptedItem_info);// listview load item từ AcceptedItem_info
+                    // set up cell factory -> để tạo ra 1 dòng chứa nhiều loại icon và button tương tác
+                    List_AcceptedItem.setCellFactory(lv -> new CustomItemCell());
+                });
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -528,6 +530,30 @@ public class userinfocontroller {
         }
         List_AcceptedItem.setItems(AcceptedItem_info);
         List_AcceptedItem.setCellFactory(lv -> new CustomItemCell());
+    }
+    private List<Item> parseItemsFromJson(JsonNode arrayNode) {
+        List<Item> items = new ArrayList<>();
+        if (arrayNode == null || !arrayNode.isArray()) return items;
+
+        for (JsonNode node : arrayNode) {
+            try {
+                String id = node.path("id").asText("");
+                String typeStr = node.path("type").asText("");
+                String name = node.path("name").asText("");
+
+                double price = node.has("prices") ? node.path("prices").asDouble() : node.path("price").asDouble();
+                String info = node.path("info").asText("");
+
+                ItemType itemType = ItemType.valueOf(typeStr);
+                Item item = itemFactory.createItem(itemType, name, price, info);
+                item.setId(id);
+
+                items.add(item);
+            } catch (Exception e) {
+                System.err.println("Lỗi parse 1 item: " + e.getMessage());
+            }
+        }
+        return items;
     }
 }
 // custom khung cho hiện thị ở list item ,
@@ -587,7 +613,7 @@ class CustomItemCell extends ListCell<String>{
         remove_item.setOnAction(event ->{
             String item = getItem();
             getListView().getItems().remove(item);
-           System.out.println("đã xóa item khỏi history");
+            System.out.println("đã xóa item khỏi history");
         });
 
 
