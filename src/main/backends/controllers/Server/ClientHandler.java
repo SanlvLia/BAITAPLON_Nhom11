@@ -1,8 +1,6 @@
 package controllers.Server;
 
-import Database.BidTransactions;
-import Database.RequestLog;
-import Database.UserStore;
+import Database.*;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -174,8 +172,9 @@ public class ClientHandler implements Runnable {
                             );
 
                             // Lưu vào Inventory và đổi trạng thái Request
-                            inventoryDB.saveItem(item, request.userId());
+                            inventoryDB.saveItem(item, request.userId(),request.id());
                             requestLogDB.updateRequestStatus(cmd.targetId, Database.RequestLog.STATUS_ACCEPTED);
+
 
                             ObjectNode ack = mapper.createObjectNode();
                             ack.put("type", "ACTION_SUCCESS");
@@ -297,6 +296,35 @@ public class ClientHandler implements Runnable {
 
                     AuctionRoom.getInstance().connectors.put(userId, this);
                     System.out.println("User " + userId + " với role " + payload.getRole() + " đã kết nối thành công!");
+                }
+                case "removeitem" -> {
+                    String userId = node.get("Id_user").asText();
+                    String payloadJson = node.get("payloadJson").asText();
+
+                    RemoveRequestpayload payload = mapper.readValue(payloadJson, RemoveRequestpayload.class);
+                    String request_id = payload.getRequest_id();
+                    String status_item = payload.getStatus();
+                    RequestLog requestlog = new RequestLog();
+                    Inventory inventoryDB = new  Inventory();
+
+                    if( status_item.equals(MyRequest.STATUS_IN_PROGRESS) || status_item.equals(MyRequest.STATUS_WAITING)){
+                        ObjectNode response =  mapper.createObjectNode();
+                        response.put("type", "remove_item_fail");
+                        send (response.toString());// gửi thông baos lỗi cho usercontroller
+                        return;
+                    }
+                    // nếu không ở trạng thái running và waitting thì xóa được
+                    else {
+                        inventoryDB.removeItem(payload.getRequest_id()); // find item by request_id
+                        requestlog.removeRequest(payload.getRequest_id());// already have a function checking whether the request existed or not
+
+                        ObjectNode response =  mapper.createObjectNode();
+                        response.put("type", "remove_item_OK");
+                        response.put("payloadJson", gson.toJson(payload));
+
+                        send(response.toString());
+                    }
+
                 }
 
                 default -> System.out.println("[ClientHandler] Unknown type: " + type);

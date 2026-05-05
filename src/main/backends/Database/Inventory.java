@@ -35,7 +35,8 @@ public class Inventory {
                 name TEXT NOT NULL,
                 price DOUBLE,
                 itemDescription TEXT,
-                userId TEXT,
+                request_id TEXT,
+                 userId TEXT,
                 status VARCHAR(20),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -49,20 +50,21 @@ public class Inventory {
         }
     }
 
-    //Lưu sản phẩm vào kho
-    public void saveItem(Item item, String userId) throws IOException {
+    //Lưu sản phẩm vào kho dùng khi tạo accept request ở requestlog
+    public void saveItem(Item item, String userId ,String request_id) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
-                     INSERT INTO inventory(ItemId,type,name,price,itemDescription,userId,status)
-                     VALUES(?,?,?,?,?,?,?)
+                     INSERT INTO inventory(ItemId,type,name,price,itemDescription,request_id , userId,status)
+                     VALUES(?,?,?,?,?,?,?,?)
                      """)) {
             statement.setString(1, item.getId());
             statement.setString(2, item.getType());
             statement.setString(3, item.getName());
             statement.setDouble(4, item.getPrices());
             statement.setString(5, item.getInfo());
-            statement.setString(6, userId);
-            statement.setString(7, STATUS_WAITING);
+            statement.setString(6, request_id);
+            statement.setString(7, userId);
+            statement.setString(8, STATUS_WAITING);
             statement.executeUpdate();
         } catch (SQLException e) {
             throw new IOException("Khong the luu san pham", e);
@@ -167,12 +169,12 @@ public class Inventory {
         return null;
     }
 
-    public String getStatusById(String itemId) {
-        String sql = "SELECT status FROM inventory WHERE ItemId = ?";
+    public String getStatusById(String request_id) {
+        String sql = "SELECT status FROM inventory WHERE request_id = ?";
         try (Connection conn = openConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            ps.setString(1, itemId);
+            ps.setString(1, request_id);
             ResultSet rs = ps.executeQuery();
 
             if (rs.next()) {
@@ -226,6 +228,40 @@ public class Inventory {
             statement.executeBatch();
         } catch (SQLException e) {
             throw new IOException("Khong the cap nhat trang thai danh sach san pham", e);
+        }
+    }
+    // dùng cho chức năng remove item ở user
+    public boolean item_exist(String requestId) throws IOException {
+        try( Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+            SELECT EXISTS(
+            SELECT 1
+            FROM inventory
+            WHERE request_id = ?)
+            AS is_exists;
+""")){
+            statement.setString(1,requestId);
+            try(ResultSet resultSet = statement.executeQuery()){
+                return resultSet.next() && resultSet.getInt(1) ==1;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+    public void removeItem(String requestId) throws IOException {
+        try(Connection connection = openConnection();
+            PreparedStatement statement = connection.prepareStatement("""
+             DELETE FROM inventory
+             WHERE request_id = ?
+""")){
+            statement.setString(1,requestId);
+            if (item_exist(requestId)) {
+                statement.addBatch();
+                statement.executeBatch();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 

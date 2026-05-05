@@ -113,6 +113,24 @@ public class RequestLog {
             throw new IOException("Khong the lay request theo id", e);
         }
     }
+    public String getStatusById(String request_id) {
+        String sql = "SELECT status FROM request_log WHERE request_id = ?";
+        try (Connection conn = openConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, request_id);
+            ResultSet rs = ps.executeQuery();
+
+            if (rs.next()) {
+                return rs.getString("status");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
 
     public void updateRequestStatus(String requestId, String status) throws IOException {
         try (Connection connection = openConnection();
@@ -189,6 +207,39 @@ public class RequestLog {
             }
         } catch (Exception e){
             throw new IOException("cannot load requests", e);
+        }
+    }
+    public void removeRequest(String requestId) throws IOException {
+        try(Connection connection = openConnection();
+            PreparedStatement statement = connection.prepareStatement("""
+             DELETE FROM request_log
+             WHERE request_id = ?
+""")){
+            statement.setString(1,requestId);
+            if (request_exist(requestId)) {
+                statement.addBatch();
+                statement.executeBatch();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    public boolean request_exist(String requestId) throws IOException {
+        try( Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+            SELECT EXISTS(
+            SELECT 1
+            FROM request_log
+            WHERE request_id = ?)
+            AS is_exists;
+""")){
+            statement.setString(1,requestId);
+            try(ResultSet resultSet = statement.executeQuery()){
+                return resultSet.next() && resultSet.getInt(1) ==1;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
         }
     }
 

@@ -10,17 +10,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MyRequest {
+    public static final String STATUS_WAITING = "WAITING";
+    public static final String STATUS_SCHEDULED = "SCHEDULED";
+    public static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
+    public static final String STATUS_SOLD = "SOLD";
+    public static final String STATUS_UNSOLD = "UNSOLD";
+
+    public static final String STATUS_PENDING = "PENDING";
+    public static final String STATUS_ACCEPTED = "ACCEPTED";
+    public static final String STATUS_REJECTED = "REJECTED";
+    //                STT INTEGER PRIMARY KEY AUTOINCREMENT,
     private static final Path DATA_DIRECTORY = Path.of("data");
     static final Path DATABASE_FILE = DATA_DIRECTORY.resolve("my_request.db");
     private static final String DATABASE_URL = "jdbc:sqlite:" + DATABASE_FILE;
     private static final String CREATE_REQUEST_TABLE_SQL = """
             CREATE TABLE IF NOT EXISTS my_request (
-                STT INTEGER PRIMARY KEY AUTOINCREMENT,
-                request_id TEXT,
+                request_id TEXT PRIMARY KEY,
                 id_user TEXT,
                 request_type TEXT ,
                 request_info TEXT,
-                send_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP                               
+                send_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status TEXT
             )
             """;
 
@@ -32,27 +42,70 @@ public class MyRequest {
             throw new IllegalStateException(" KHONG THE KHOI TAO request database");
         }
     }
-
+    // DÙNG HÀM này khi tạo mới 1 request
     public static void save_myrequest(Message message, String requestId) throws  IOException {
         try(Connection connection = openConnection();
             PreparedStatement statement = connection.prepareStatement("""
-            INSERT INTO my_request (request_id, id_user , request_type , request_info) VALUES (?, ? , ? , ?)""")
+            INSERT INTO my_request (request_id, id_user , request_type , request_info , status) VALUES (?, ? , ? , ?  , ?)""")
         ){
             statement.setString(1, requestId);
             statement.setString(2,message.Id_user);
             statement.setString(3,message.messageType);
             statement.setString(4, message.payloadJson);
+            statement.setString(5,STATUS_PENDING);
 
             statement.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } ;
     }
+    public MyRequest.RequestRecord findByRequestId(String requestId) throws IOException {
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                     SELECT request_id, id_user, request_type, request_info ,send_at, status
+                     FROM my_request
+                     WHERE request_id = ?
+                     """)) {
+            statement.setString(1, requestId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return null;
+                }
+                return new MyRequest.RequestRecord(
+                        resultSet.getString("request_id"),
+                        resultSet.getString("id_user"),
+                        resultSet.getString("request_type"),
+                        resultSet.getString("request_info"),
+                        resultSet.getString("send_at"),
+                        resultSet.getString("status"));
+            }
+        } catch (SQLException e) {
+            throw new IOException("Khong the lay request theo id", e);
+        }
+    }
+    public String getStatusById(String request_id) {
+        String sql = "SELECT status FROM my_request WHERE request_id = ?";
+        try (Connection conn = openConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, request_id);
+            ResultSet rs = ps.executeQuery();
+
+            if (rs.next()) {
+                return rs.getString("status");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
 
     public List<RequestRecord> getMyRequestsByType(String requestType) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
-                     SELECT STT, request_id, id_user, request_type, request_info, send_at
+                     SELECT request_id, id_user, request_type, request_info, send_at ,status
                      FROM my_request
                      WHERE request_type = ?
                      ORDER BY send_at ASC
@@ -62,13 +115,12 @@ public class MyRequest {
                 List<RequestRecord> requests = new ArrayList<>();
                 while (resultSet.next()) {
                     requests.add(new RequestRecord(
-                            resultSet.getInt("STT"),
                             resultSet.getString("request_id"),
                             resultSet.getString("id_user"),
                             resultSet.getString("request_type"),
                             resultSet.getString("request_info"),
-                            resultSet.getString("send_at")
-                    ));
+                            resultSet.getString("send_at"),
+                            resultSet.getString("status")));
                 }
                 return requests;
             }
@@ -96,6 +148,20 @@ public class MyRequest {
             throw new IOException("Khong the xoa request", e);
         }
     }
+    public void remove_request(String requestId) throws  IOException {
+        try(Connection connection = openConnection();
+            PreparedStatement statement = connection.prepareStatement("""
+              DELETE FROM my_request
+              WHERE request_id = ?
+""")){
+            statement.setString(1,requestId);
+            statement.addBatch();
+            statement.executeBatch();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+    }
 
     private void initializeRequest_Log() throws IOException, SQLException {
         ensureDataDirectoryExists();
@@ -113,6 +179,7 @@ public class MyRequest {
         return DriverManager.getConnection(DATABASE_URL);
     }
 
-    public record RequestRecord(int id, String requestId, String userId, String requestType, String requestInfo,String time) {
+    public record RequestRecord(String requestId, String userId, String requestType, String requestInfo, String time,
+                                String status) {
     }
 }

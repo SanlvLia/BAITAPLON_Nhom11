@@ -111,6 +111,7 @@ public class userinfocontroller {
     private Consumer<String> change_infoResultHandler;
     private Consumer<String> AdditemResultHandler;
     private Consumer<String> auctionStartHandler;
+    private Consumer<String> removeitemHandler;
     private volatile LocalDateTime endAt;
     private volatile String currentAuctionId;
     private Timeline timeline;
@@ -118,7 +119,7 @@ public class userinfocontroller {
 
 
     @FXML
-    public void initialize() throws IOException {
+    public void initialize() throws Exception {
         passshow.selectedProperty().addListener((observable, oldValue, newValue) -> refreshPasswordField());
         if (UserSession.getCurrentUser() != null) {
             setUser(UserSession.getCurrentUser());
@@ -129,6 +130,7 @@ public class userinfocontroller {
         baseprice.setEditable(false);
         increment.setEditable(false);
         loaduser_request();
+        remove_itemResult();
         loadupcomingAuctions();
         subscribeDepositResult();
         subcribePlaceBid();
@@ -368,6 +370,45 @@ public class userinfocontroller {
             infopassword.setText(user.getPassword());
         }
     }
+    private void remove_itemResult() throws Exception {
+        removeitemHandler = rawJson -> {
+            ObjectMapper mapper = new ObjectMapper();
+            try {
+                JsonNode node = mapper.readTree(rawJson);
+                String type = node.get("type").asText();
+                if  (type.equals("remove_item_OK") && node.has("payloadJson")) {
+                    String  payloadjson = node.get("payloadJson").asText();
+                    Gson gson = new Gson();
+                    RemoveRequestpayload payload = gson.fromJson(payloadjson ,  RemoveRequestpayload.class);
+                    String request_id = payload.getRequest_id();
+                    if (request_id == null || request_id.isBlank()) {
+                        showAlert(Alert.AlertType.WARNING, "Loi", "Khong nhan duoc request_id hop le");
+                        return;
+                    }
+
+                    myrequest.remove_request(request_id);
+                    Platform.runLater(() -> {
+                        AcceptedItem_info.remove(request_id);
+                        AcceptedItem_info.clear();
+                        try {
+                            loaduser_request();// load lại request
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        showAlert(Alert.AlertType.INFORMATION,"ok", "remove item successfully");
+                    });
+                }
+                else if( type.equals("remove_item_fail"))
+                    showAlert(Alert.AlertType.WARNING , "khong thanh cong" , "item is now in auction or not but you cannot");
+
+            } catch (IOException e) {
+
+                e.printStackTrace();
+            }
+        };
+        MessageBus.getInstance().subscribe(removeitemHandler);
+    }
+
     public void placebid(ActionEvent event) throws IOException {
         String amountStr = bidprice.getText();
         Double amount;
@@ -538,6 +579,7 @@ class CustomItemCell extends ListCell<String>{
     private Button remove_item;
     private Pane spacer;
     private final RequestLog requestLog = new RequestLog();
+    private final MyRequest myrequest = new MyRequest();
     private final Gson gson = new Gson();
 
     public CustomItemCell(){
@@ -561,7 +603,7 @@ class CustomItemCell extends ListCell<String>{
                 return;
             }
             try {
-                RequestLog.RequestRecord request = requestLog.findByRequestId(requestId);
+                MyRequest.RequestRecord request = myrequest.findByRequestId(requestId);
                 if (request == null) {
                     return;
                 }
@@ -570,7 +612,7 @@ class CustomItemCell extends ListCell<String>{
                 alert.setTitle("Thong tin item");
                 alert.setHeaderText(payload.getItem_name());
                 alert.setContentText(
-                        "Request ID: " + request.id() + "\n" +
+                        "Request ID: " + request.requestId() + "\n" +
                                 "User ID: " + request.userId() + "\n" +
                                 "Type: " + payload.getItemType() + "\n" +
                                 "Base price: " + payload.getBasePrice() + "\n" +
@@ -585,9 +627,19 @@ class CustomItemCell extends ListCell<String>{
             }
         });
         remove_item.setOnAction(event ->{
-            String item = getItem();
-            getListView().getItems().remove(item);
-           System.out.println("đã xóa item khỏi history");
+             String item = getItem();// trả về id_request
+
+             Gson gson = new Gson();
+             RemoveRequestpayload payload = new RemoveRequestpayload(item , myrequest.getStatusById(item));
+             String payloadjson = gson.toJson(payload);
+
+             Message msg = new Message();
+             msg.Id_user = UserSession.getCurrentUser().getId();
+             msg.messageType = "removeitem";
+             msg.payloadJson = payloadjson;
+
+             UserSession.getConnection().send(msg);
+            System.out.println("đã xóa item khỏi history");
         });
 
 
