@@ -95,6 +95,13 @@ public class ClientHandler implements Runnable {
                     AuctionRoom.getInstance().broadcast(json);
                 }
 
+                case "GET_BALANCE" -> {
+                    Message msg = mapper.readValue(json, Message.class);
+                    UserStore userStore = new UserStore();
+                    double currentBalance = userStore.get_balance(msg.Id_user);
+                    send(okJson(currentBalance));
+                }
+
                 // ADMIN XIN DỮ LIỆU INVENTORY
                 case "FETCH_INVENTORY" -> {
                     Database.Inventory inventoryDB = new Database.Inventory();
@@ -152,6 +159,12 @@ public class ClientHandler implements Runnable {
                         ObjectNode ack = mapper.createObjectNode();
                         ack.put("type", "ACTION_SUCCESS");
                         send(ack.toString());
+                        InventoryDataResponse inventoryResponse = new InventoryDataResponse();
+                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_WAITING);
+                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_SCHEDULED);
+                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_IN_PROGRESS);
+
+                        AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(inventoryResponse));
                     }
                     else if ("REJECT_REQUEST".equals(cmd.action)) {
                         requestLogDB.updateRequestStatus(cmd.targetId, Database.RequestLog.STATUS_REJECTED);
@@ -238,6 +251,7 @@ public class ClientHandler implements Runnable {
                     // TODO: lấy danh sách phiên từ AuctionManager, gửi riêng cho client này
                     send("{\"type\":\"AUCTION_LIST\",\"data\":[]}");
                 }
+
                 case "DEPOSIT" -> {
                     String userId = node.get("Id_user").asText();
                     String payloadJson = node.get("payloadJson").asText();
@@ -247,7 +261,7 @@ public class ClientHandler implements Runnable {
 
                     UserStore userStore = new UserStore();
                     userStore.update_balance(payload.getAmount(), userId);
-
+                    payload.setAmount(userStore.get_balance(userId));
                     ObjectNode responseNode = mapper.createObjectNode();// tạo 1 kiểu payloadjson để có thể dùng chung cho các phương thức khác
                     responseNode.put("type", "deposit_OK");
                     responseNode.put("payloadJson", gson.toJson(payload));
@@ -321,7 +335,7 @@ public class ClientHandler implements Runnable {
 
     private String okJson(Double amount) {
         ObjectNode node = mapper.createObjectNode();
-        node.put("type", "OK");
+        node.put("type", "deposit_OK");
         node.put("amount", amount);
         return node.toString();
     }

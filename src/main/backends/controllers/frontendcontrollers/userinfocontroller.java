@@ -40,6 +40,8 @@ import Database.Inventory;
 import models.core.Item;
 import models.items.*;
 
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -114,7 +116,7 @@ public class userinfocontroller {
     private volatile String currentAuctionId;
     private Timeline timeline;
     private Timeline upcomingSyncTimeline;
-
+    private static double currentBalance;
 
     @FXML
     public void initialize() throws IOException {
@@ -122,6 +124,7 @@ public class userinfocontroller {
         if (UserSession.getCurrentUser() != null) {
             setUser(UserSession.getCurrentUser());
         }
+        loadCurrentAmount();
         high_bidder.setEditable(false);
         current_amount.setEditable(false);
         itemName.setEditable(false);
@@ -137,6 +140,18 @@ public class userinfocontroller {
         subscribeAuction();
         subscribeAuctionList();
         startUIUpdater();
+    }
+
+    private void loadCurrentAmount() {
+        Platform.runLater(() -> balance.setText("0.0"));
+        Message get = new Message();
+        get.messageType = "GET_BALANCE";
+        get.Id_user = UserSession.getCurrentUser().getId();
+        UserSession.getConnection().send(get);
+    }
+
+    public static double get_Balance() {
+        return currentBalance;
     }
 
     private void loadupcomingAuctions() {
@@ -276,17 +291,34 @@ public class userinfocontroller {
                         AuctionStatusMessage statusMsg = mapper.readValue(json, AuctionStatusMessage.class);
                         Platform.runLater(() -> {
                             if(statusMsg.status.equals("STARTED")) {
-                                //itemName.setText(statusMsg.auction.getItem().getName());
-                                //baseprice.setText(Double.toString(statusMsg.auction.getItem().getPrices()));
-                                increment.setText("0");
-                                Long epoch = statusMsg.endTimeEpoch - System.currentTimeMillis();
-                                updateClock(java.time.Duration.ofMillis(epoch));
+                                currentAuctionId = statusMsg.auctionId;
+                                endAt = Instant.ofEpochMilli(statusMsg.endTimeEpoch)
+                                        .atZone(ZoneId.systemDefault())
+                                        .toLocalDateTime();
+                            } else if ("ENDED".equals(statusMsg.status)) {
+                                    endAt = null;
+                                    currentAuctionId = null;
+                                    setClock0();
+                                UserSession.getConnection().send(new FetchDataRequest("FETCH_INVENTORY"));
+
                             }
                         });
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
                     }
 
+                }
+                case ("START_AUCTION") -> {
+                    try {
+                        StartAuctionMessage msg = mapper.readValue(json, StartAuctionMessage.class);
+                        Platform.runLater(() -> {
+                            itemName.setText(msg.itemName);
+                            baseprice.setText(String.valueOf(msg.startingPrice));
+                            increment.setText(String.valueOf(msg.bidIncrement));
+                        });
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             };
         };
@@ -301,21 +333,20 @@ public class userinfocontroller {
                 JsonNode node = mapper.readTree(rawJson);
                 String type = node.get("type").asText();
 
-                if (type.equals("deposit_OK") && node.has("payloadJson")) {
-                    String payloadjson = node.get("payloadJson").asText();
-                    Gson gson = new Gson();
-                    JsonNode payloadJsonNode = mapper.readTree(payloadjson);
+                if (type.equals("deposit_OK")) {
+                    double amount;
 
-                    double depositedAmount = payloadJsonNode.get("amount").asDouble();// lấy giá trị được gửi đến
-
-                    User currentUser = UserSession.getCurrentUser();
-                    if (currentUser == null) {
-                        return;
+                    if (node.has("payloadJson")) {
+                        String payloadjson = node.get("payloadJson").asText();
+                        JsonNode payload = mapper.readTree(payloadjson);
+                        amount = payload.get("amount").asDouble();
+                    } else {
+                        amount = node.get("amount").asDouble();
                     }
 
-                    double updatedBalance = currentUser.getBalance() + depositedAmount;
-                    currentUser.setBalance(updatedBalance);
-                    Platform.runLater(() -> balance.setText(String.valueOf(updatedBalance)));
+                    currentBalance = amount;
+
+                    Platform.runLater(() -> balance.setText(String.valueOf(amount)));
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -334,7 +365,7 @@ public class userinfocontroller {
         infoname.setText(user.getName());
         infoemail.setText(user.getEmail());
         infophonenumber.setText(user.getPhoneNumber());
-        balance.setText(String.valueOf(user.getBalance()));
+        //balance.setText(String.valueOf(user.getBalance()));
         refreshPasswordField();
     }
 
@@ -362,6 +393,10 @@ public class userinfocontroller {
         }
     }
     public void placebid(ActionEvent event) throws IOException {
+        if (endAt == null || currentAuctionId == null) {
+            new Alert(Alert.AlertType.ERROR, "No auction is currently running", ButtonType.OK).show();
+            return;
+        }
         String amountStr = bidprice.getText();
         Double amount;
         try {
@@ -369,7 +404,7 @@ public class userinfocontroller {
             if(amount < 0) {
                 throw new IllegalArgumentException("Invalid amount : amount must be positive");
             }
-            if(amount < UserSession.getCurrentUser().getBalance()) {
+            if(amount > currentBalance) {
                 throw new IllegalArgumentException("Invalid amount : your balance is not enough");
             }
         } catch (NumberFormatException e) {
@@ -381,7 +416,7 @@ public class userinfocontroller {
         }
         String currentUserId = UserSession.getCurrentUser().getId();
         java.time.Duration remaining = java.time.Duration.between(LocalDateTime.now(), endAt);
-        if (remaining.isZero() || remaining.isNegative()) {
+        if (remaining.isZero() || remaining.isNegative() || endAt == null) {
             new Alert(Alert.AlertType.ERROR, "The bidding period has expired", ButtonType.OK).show();
             return;
         } else {

@@ -2,6 +2,7 @@ package controllers.Server;
 
 import Database.Inventory;
 import controllers.AuctionService;
+import models.Extra.messages.StartAuctionMessage;
 import models.accounts.Admin;
 import models.bidding.Auction;
 import models.core.Item;
@@ -61,7 +62,8 @@ public class ServerAuctionManager {
             statusMsg.endTimeEpoch = System.currentTimeMillis() + (durationMinutes * 60000L);
 
             AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(statusMsg));
-
+            StartAuctionMessage start_msg = new StartAuctionMessage(statusMsg.endTimeEpoch, auction.getItem().getName(), auction.getAuctionId(), auction.getItem().getPrices(),0 );
+            AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(start_msg));
         } catch (Exception e) {
             System.err.println("[Server] Loi start auction: " + e.getMessage());
         }

@@ -118,6 +118,8 @@ public class admininfocontroller {
 
     private final java.util.Map<String, Long> currentEndTimeEpochs = new java.util.HashMap<>();
 
+    private volatile boolean isRestoringSelection = false;
+
     @FXML
     public void initialize() {
         passshow.selectedProperty().addListener((observable, oldValue, newValue) -> refreshPasswordField());
@@ -134,6 +136,7 @@ public class admininfocontroller {
         subcribeAuctionController();
         loadInventoryData();
         upcomingitem.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+            if (isRestoringSelection) return; // FIX: bỏ qua khi đang restore
             if (newValue != null) {
                 handleAuctionClick(newValue);
             }
@@ -169,18 +172,16 @@ public class admininfocontroller {
                 // Nhận danh sách Inventory mới nhất
                 case "INVENTORY_DATA" -> {
                     try {
-                        // Dùng JsonNode và hàm helper tự viết thay cho mapper.readValue
                         JsonNode rootNode = mapper.readTree(json);
                         List<Item> waitingItems = parseItemsFromJson(rootNode.path("waitingItems"));
                         List<Item> scheduledItems = parseItemsFromJson(rootNode.path("scheduledItems"));
                         List<Item> inProgressItems = parseItemsFromJson(rootNode.path("inProgressItems"));
 
                         Platform.runLater(() -> {
-                            // BƯỚC 1: Ghi nhớ lại ID của các Item đang được click chọn
                             String selectedUpcomingId = (itemAuction != null) ? itemAuction.getId() : null;
-                            String selectedInventoryId = (inventory.getSelectionModel().getSelectedItem() != null) ? inventory.getSelectionModel().getSelectedItem().getId() : null;
+                            String selectedInventoryId = (inventory.getSelectionModel().getSelectedItem() != null)
+                                    ? inventory.getSelectionModel().getSelectedItem().getId() : null;
 
-                            // BƯỚC 2: Cập nhật dữ liệu
                             inProgressItemIds.clear();
                             for (Item i : inProgressItems) {
                                 inProgressItemIds.add(i.getId());
@@ -192,22 +193,27 @@ public class admininfocontroller {
                             upcoming.addAll(inProgressItems);
                             upcomingitem.setItems(FXCollections.observableArrayList(upcoming));
 
-                            // BƯỚC 3: Trả lại con trỏ chuột về đúng Item cũ
-                            if (selectedUpcomingId != null) {
-                                for (Item i : upcomingitem.getItems()) {
-                                    if (i.getId().equals(selectedUpcomingId)) {
-                                        upcomingitem.getSelectionModel().select(i);
-                                        break;
+                            // FIX: bật flag trước khi restore selection
+                            isRestoringSelection = true;
+                            try {
+                                if (selectedUpcomingId != null) {
+                                    for (Item i : upcomingitem.getItems()) {
+                                        if (i.getId().equals(selectedUpcomingId)) {
+                                            upcomingitem.getSelectionModel().select(i);
+                                            break;
+                                        }
                                     }
                                 }
-                            }
-                            if (selectedInventoryId != null) {
-                                for (Item i : inventory.getItems()) {
-                                    if (i.getId().equals(selectedInventoryId)) {
-                                        inventory.getSelectionModel().select(i);
-                                        break;
+                                if (selectedInventoryId != null) {
+                                    for (Item i : inventory.getItems()) {
+                                        if (i.getId().equals(selectedInventoryId)) {
+                                            inventory.getSelectionModel().select(i);
+                                            break;
+                                        }
                                     }
                                 }
+                            } finally {
+                                isRestoringSelection = false; // FIX: luôn tắt flag dù có lỗi
                             }
                         });
                     } catch (Exception e) {

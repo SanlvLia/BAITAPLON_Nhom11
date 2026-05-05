@@ -1,6 +1,9 @@
 package models.Extra.messages;
 
 public class Message {
+    public Message() {
+
+    }
     public String Id_user;
 
     public String messageType; //  need type to make it easy for server to sort the message

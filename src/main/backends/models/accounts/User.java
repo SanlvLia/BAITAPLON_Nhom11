@@ -4,6 +4,7 @@ import Database.Inventory;
 import Database.RequestLog;
 import com.google.gson.Gson;
 import controllers.AuctionService;
+import controllers.UserSession;
 import models.Extra.messages.Message;
 import models.bidding.Auction;
 import models.bidding.CanBidding;
@@ -21,8 +22,11 @@ public class User extends Account implements CanBidding, CanSelling {
     HashSet<Item> items = new HashSet<>();
     private double balance;
 
-    public double getBalance() {
-        return balance;
+    public void getBalance() {
+        Message get = new Message();
+        get.messageType = "GET_BALANCE";
+        get.Id_user = UserSession.getCurrentUser().getId();
+        UserSession.getConnection().send(get);
     }
     public void setBalance(double balance){
         this.balance = balance;

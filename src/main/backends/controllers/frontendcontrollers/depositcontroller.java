@@ -39,7 +39,7 @@ public class depositcontroller {
     public void handle_verify(ActionEvent event) {
         try {
             double moneyIn = Double.parseDouble(deposit_amount.getText());
-            double currentBalance = UserSession.getCurrentUser().getBalance();
+            double currentBalance = userinfocontroller.get_Balance();
             double expected = currentBalance + moneyIn;
 
             // Hiển thị số dư dự kiến vào label Tổng
@@ -82,7 +82,9 @@ public class depositcontroller {
     public void ok_deposit(ActionEvent event) {
         try {
             double moneyIn = Double.parseDouble(deposit_amount.getText());
-
+            if(moneyIn <= 0) {
+                throw new Exception();
+            }
             Message msg = new Message();
             msg.Id_user = UserSession.getCurrentUser().getId();
             msg.messageType = "DEPOSIT";
