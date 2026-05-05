@@ -2,6 +2,7 @@ package Database;
 
 import models.Extra.IdGenerator;
 import models.Extra.messages.Message;
+import org.sqlite.jdbc4.JDBC4Connection;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -207,6 +208,24 @@ public class RequestLog {
             }
         } catch (Exception e){
             throw new IOException("cannot load requests", e);
+        }
+    }
+    public String getUserbyRequestId(String requestId) throws IOException {
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                     SELECT id_user
+                     FROM request_log
+                     WHERE request_id = ?
+                     """)) {
+            statement.setString(1, requestId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return null;
+                }
+                return resultSet.getString("id_user");
+            }
+        } catch (SQLException e) {
+            throw new IOException("Khong the lay user id theo request id", e);
         }
     }
     public void removeRequest(String requestId) throws IOException {

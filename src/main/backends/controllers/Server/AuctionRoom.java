@@ -75,6 +75,10 @@ public class AuctionRoom {
             }
         }
     }
+    public static void SendToOneuser(String userId,String json) {
+        AuctionRoom.getInstance().connectors.get(userId).send(json);
+    }
+
 
     // Gửi đến những client đang xem 1 phiên cụ thể
     // Dùng cho: bid mới, cập nhật giá, đóng phiên

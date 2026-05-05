@@ -389,7 +389,7 @@ public class admininfocontroller {
     }
 
     @FXML
-    public void handle_reject_requests(ActionEvent event) {
+    public void handle_reject_requests(ActionEvent event) throws IOException {
         if (selectedRequestIds.isEmpty()) {
             showMessage("Thong bao", "Vui long chon request can tu choi.");
             return;
@@ -400,18 +400,19 @@ public class admininfocontroller {
     }
 
     @FXML
-    public void handle_accept_requests(ActionEvent event) {
+    public void handle_accept_requests(ActionEvent event) throws IOException {
         if (selectedRequestIds.isEmpty()) {
             showMessage("Thong bao", "Vui long chon request can duyet.");
             return;
         }
         for (String reqId : selectedRequestIds) {
-            UserSession.getConnection().send(new AdminActionCommand("ACCEPT_REQUEST", reqId));
+            String userid = requestlog.getUserbyRequestId(reqId);
+            UserSession.getConnection().send(new AdminActionCommand("ACCEPT_REQUEST",reqId , userid));
         }
     }
 
     @FXML
-    public void handle_create_auction(ActionEvent event) {
+    public void handle_create_auction(ActionEvent event) throws IOException {
         error_create_auction.setVisible(false);
         Item currentItem = inventory.getSelectionModel().getSelectedItem();
         if (currentItem == null) {

@@ -112,6 +112,7 @@ public class userinfocontroller {
     private Consumer<String> AdditemResultHandler;
     private Consumer<String> auctionStartHandler;
     private Consumer<String> removeitemHandler;
+    private Consumer<String> actionAcceptedHandler;
     private volatile LocalDateTime endAt;
     private volatile String currentAuctionId;
     private Timeline timeline;
@@ -137,6 +138,7 @@ public class userinfocontroller {
         subscribeAdditemResult();
         subscribechangeResult();
         subscribeAuctionStart();
+        subscribeActionAccepted();
         subscribeAuctionList();
         startUIUpdater();
     }
@@ -332,6 +334,47 @@ public class userinfocontroller {
         };
 
         MessageBus.getInstance().subscribe(depositResultHandler);
+    }
+    private void subscribeActionAccepted() {
+        actionAcceptedHandler = rawJson -> {
+            ObjectMapper mapper = new ObjectMapper();
+            try {
+                JsonNode node = mapper.readTree(rawJson);
+                String type = resolveMessageType(node);
+
+                if (!"ACCEPTED_SUCCESS".equals(type)) {
+                    return;
+                }
+
+                String requestId = node.path("request_id").asText("");
+                String userId = node.path("user_id").asText("");
+                String status = node.path("status").asText(MyRequest.STATUS_ACCEPTED);
+
+                User currentUser = UserSession.getCurrentUser();
+                if (currentUser == null || requestId.isBlank()) {
+                    return;
+                }
+
+                if (!userId.isBlank() && !currentUser.getId().equals(userId)) {
+                    return;
+                }
+
+                myrequest.updateRequestStatus(requestId, status);
+
+                Platform.runLater(() -> {
+                    try {
+                        loaduser_request();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    showAlert(Alert.AlertType.INFORMATION, "Thong bao", "Item da duoc admin chap nhan");
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        };
+
+        MessageBus.getInstance().subscribe(actionAcceptedHandler);
     }
 
     public void setUser(User user) {

@@ -174,7 +174,14 @@ public class ClientHandler implements Runnable {
                             // Lưu vào Inventory và đổi trạng thái Request
                             inventoryDB.saveItem(item, request.userId(),request.id());
                             requestLogDB.updateRequestStatus(cmd.targetId, Database.RequestLog.STATUS_ACCEPTED);
+                            // gửi tín hiệu cho usercontroller tự cập nhật dữ liệu (trạng thái của item)
+                            ObjectNode response =  mapper.createObjectNode();
+                            response.put("type", "ACCEPTED_SUCCESS");
+                            response.put("user_id" , cmd.userId);
+                            response.put("request_id" ,  cmd.targetId);
+                            response.put("status" , RequestLog.STATUS_ACCEPTED);
 
+                            AuctionRoom.getInstance().connectors.get(cmd.userId).send(String.valueOf(response));
 
                             ObjectNode ack = mapper.createObjectNode();
                             ack.put("type", "ACTION_SUCCESS");

@@ -101,6 +101,20 @@ public class MyRequest {
 
         return null;
     }
+    public void updateRequestStatus(String requestId, String status) throws IOException {
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                 UPDATE my_request
+                 SET status = ?
+                 WHERE request_id = ?
+                 """)) {
+            statement.setString(1, status);
+            statement.setString(2, requestId);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new IOException("Khong the cap nhat trang thai my_request ở bảng dữ liệu", e);
+        }
+    }
 
     public List<RequestRecord> getMyRequestsByType(String requestType) throws IOException {
         try (Connection connection = openConnection();
