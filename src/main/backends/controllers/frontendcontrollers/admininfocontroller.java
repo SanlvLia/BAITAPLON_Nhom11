@@ -118,6 +118,8 @@ public class admininfocontroller {
 
     private final java.util.Map<String, Long> currentEndTimeEpochs = new java.util.HashMap<>();
 
+    private volatile boolean isRestoringSelection = false;
+
     @FXML
     public void initialize() {
         passshow.selectedProperty().addListener((observable, oldValue, newValue) -> refreshPasswordField());
@@ -134,6 +136,7 @@ public class admininfocontroller {
         subcribeAuctionController();
         loadInventoryData();
         upcomingitem.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+            if (isRestoringSelection) return; // FIX: bỏ qua khi đang restore
             if (newValue != null) {
                 handleAuctionClick(newValue);
             }
@@ -178,7 +181,8 @@ public class admininfocontroller {
                         Platform.runLater(() -> {
                             // BƯỚC 1: Ghi nhớ lại ID của các Item đang được click chọn
                             String selectedUpcomingId = (itemAuction != null) ? itemAuction.getId() : null;
-                            String selectedInventoryId = (inventory.getSelectionModel().getSelectedItem() != null) ? inventory.getSelectionModel().getSelectedItem().getId() : null;
+                            String selectedInventoryId = (inventory.getSelectionModel().getSelectedItem() != null)
+                                    ? inventory.getSelectionModel().getSelectedItem().getId() : null;
 
                             // BƯỚC 2: Cập nhật dữ liệu
                             inProgressItemIds.clear();
@@ -192,22 +196,27 @@ public class admininfocontroller {
                             upcoming.addAll(inProgressItems);
                             upcomingitem.setItems(FXCollections.observableArrayList(upcoming));
 
-                            // BƯỚC 3: Trả lại con trỏ chuột về đúng Item cũ
-                            if (selectedUpcomingId != null) {
-                                for (Item i : upcomingitem.getItems()) {
-                                    if (i.getId().equals(selectedUpcomingId)) {
-                                        upcomingitem.getSelectionModel().select(i);
-                                        break;
+                            // FIX: bật flag trước khi restore selection
+                            isRestoringSelection = true;
+                            try {
+                                if (selectedUpcomingId != null) {
+                                    for (Item i : upcomingitem.getItems()) {
+                                        if (i.getId().equals(selectedUpcomingId)) {
+                                            upcomingitem.getSelectionModel().select(i);
+                                            break;
+                                        }
                                     }
                                 }
-                            }
-                            if (selectedInventoryId != null) {
-                                for (Item i : inventory.getItems()) {
-                                    if (i.getId().equals(selectedInventoryId)) {
-                                        inventory.getSelectionModel().select(i);
-                                        break;
+                                if (selectedInventoryId != null) {
+                                    for (Item i : inventory.getItems()) {
+                                        if (i.getId().equals(selectedInventoryId)) {
+                                            inventory.getSelectionModel().select(i);
+                                            break;
+                                        }
                                     }
                                 }
+                            } finally {
+                                isRestoringSelection = false; // FIX: luôn tắt flag dù có lỗi
                             }
                         });
                     } catch (Exception e) {
@@ -241,6 +250,7 @@ public class admininfocontroller {
                 case "AUCTION_STATUS" -> {
                     try {
                         AuctionStatusMessage statusMsg = mapper.readValue(json, AuctionStatusMessage.class);
+                        System.out.println("[AdminInfoController] Received message AUCTION_STATUS: " + json);
                         Platform.runLater(() -> {
                             System.out.println("[Admin] Nhan duoc trang thai phien: " + statusMsg.status);
                             start_end_auction.setDisable(false);
@@ -362,6 +372,7 @@ public class admininfocontroller {
             uiTimeline.stop(); // Tắt đồng hồ đếm ngược
         }
         UserSession.clear();
+        MessageBus.getInstance().clearAllSubscribers();
         Parent root = ViewLoader.load("signin.fxml");
         Scene scene = new Scene(root);
 
@@ -436,8 +447,7 @@ public class admininfocontroller {
                 long remainingMillis = currentEndTimeEpochs.get(itemAuction.getId()) - System.currentTimeMillis();
 
                 if (remainingMillis <= 0) {
-                    lblTimer.setText("00:00:00");
-                    lblTimer.setTextFill(javafx.scene.paint.Color.RED);
+                    clearUI();
                 } else {
                     updateClock(java.time.Duration.ofMillis(remainingMillis));
                 }

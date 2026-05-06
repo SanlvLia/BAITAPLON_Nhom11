@@ -79,7 +79,7 @@
                                                         <Font size="15.0" />
                                                     </font>
                                                 </Label>
-                                                <Label fx:id="balance" layoutX="34.0" layoutY="58.0" prefHeight="48.0" prefWidth="388.0" text="100000000" textFill="#9a3412">
+                                                <Label fx:id="balance" layoutX="34.0" layoutY="58.0" prefHeight="48.0" prefWidth="388.0" text="0.0" textFill="#9a3412">
                                                     <font>
                                                         <Font size="38.0" />
                                                     </font>

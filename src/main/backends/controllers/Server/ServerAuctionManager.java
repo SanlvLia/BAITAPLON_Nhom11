@@ -1,8 +1,14 @@
 package controllers.Server;
 
+import Database.BidTransactions;
 import Database.Inventory;
+import Database.UserStore;
 import controllers.AuctionService;
+import models.Extra.messages.AuctionResultMessage;
+import models.Extra.messages.ServerBidRespond;
+import models.Extra.messages.StartAuctionMessage;
 import models.accounts.Admin;
+import models.accounts.User;
 import models.bidding.Auction;
 import models.core.Item;
 import models.Extra.messages.AuctionStatusMessage;
@@ -61,7 +67,8 @@ public class ServerAuctionManager {
             statusMsg.endTimeEpoch = System.currentTimeMillis() + (durationMinutes * 60000L);
 
             AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(statusMsg));
-
+            StartAuctionMessage start_msg = new StartAuctionMessage(statusMsg.endTimeEpoch, auction.getItem().getName(), auction.getAuctionId(), auction.getItem().getPrices(),0 );
+            AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(start_msg));
         } catch (Exception e) {
             System.err.println("[Server] Loi start auction: " + e.getMessage());
         }
@@ -74,12 +81,12 @@ public class ServerAuctionManager {
             if (auction != null) {
                 // Gọi AuctionService để End (Nó sẽ tự hủy Timer đang chạy dở, update DB sang SOLD/UNSOLD)
                 AuctionService.endAuction(auction, LocalDateTime.now());
-                broadcastEnd(itemId);
+                broadcastEnd(itemId, auction);
             } else {
                 // Fix lỗi Orphan (Có trong DB nhưng mất trong RAM)
                 Inventory inventoryDB = new Inventory();
                 inventoryDB.updateItemStatus(itemId, Inventory.STATUS_WAITING);
-                broadcastEnd(itemId);
+                broadcastEnd(itemId, auction);
             }
         } catch (Exception e) {
             System.err.println("[Server] Loi end auction: " + e.getMessage());
@@ -87,13 +94,39 @@ public class ServerAuctionManager {
     }
 
     // Hàm phụ để đẩy tin nhắn kết thúc (Dùng chung cho cả tự động và thủ công)
-    public void broadcastEnd(String itemId) {
+    public void broadcastEnd(String itemId, Auction auction) {
         try {
+            String auctionId = (auction != null) ? auction.getAuctionId() : null;
+
+            if (auctionId != null) {
+                BidBatchProcessor.getInstance().flushAuction(auctionId);
+            }
+
             AuctionStatusMessage statusMsg = new AuctionStatusMessage();
             statusMsg.status = "ENDED";
             statusMsg.itemId = itemId;
             statusMsg.endTimeEpoch = 0;
             AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(statusMsg));
+            //broadcast kết quả của phien đấu giá
+            AuctionResultMessage result = new AuctionResultMessage();
+            result.itemId = itemId;
+            result.itemName = auction.getItem().getName();
+            BidTransactions bidDb = new BidTransactions();
+            ServerBidRespond maxBidder = bidDb.getMaxBidder(auction.getAuctionId());
+            if (maxBidder != null && maxBidder.userId != null) {
+                result.hasBidder = true;
+                result.winnerId = maxBidder.userId;
+                result.winningAmount = maxBidder.amount;
+
+                UserStore userStore = new UserStore();
+                User winner = userStore.getUser(maxBidder.userId);
+                result.winnerName = (winner != null) ? winner.getName() : maxBidder.userId;
+                userStore.update_balance(-result.winningAmount, result.winnerId);
+            } else {
+                result.hasBidder = false;
+                result.winnerName = "Không có người thắng";
+            }
+            AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(result));
         } catch (Exception e) {
             e.printStackTrace();
         }

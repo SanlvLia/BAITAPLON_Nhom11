@@ -199,7 +199,7 @@ public final class AuctionService {
         ScheduledFuture<?> future = AUCTION_SCHEDULER.schedule(() -> {
             try {
                 endAuction(auction, LocalDateTime.now());
-                ServerAuctionManager.getInstance().broadcastEnd(auction.getItem().getId());
+                ServerAuctionManager.getInstance().broadcastEnd(auction.getItem().getId(), auction);
             } catch (Exception e) {
                 System.err.println("Khong the tu dong dong phien dau gia " + auction.getAuctionId() + ": " + e.getMessage());
             }

@@ -215,6 +215,27 @@ public class UserStore {
             throw new IOException("Khong the cập nhật balance trong SQLite.", e);
         }
     }
+    public double get_balance(String userId) throws IOException {
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                 SELECT balance
+                 FROM users
+                 WHERE id = ?
+                 """)) {
+
+            statement.setString(1, userId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    throw new IOException("Khong tim thay user voi id = " + userId);
+                }
+                return resultSet.getDouble("balance");
+            }
+
+        } catch (SQLException e) {
+            throw new IOException("Khong the lay balance tu SQLite.", e);
+        }
+    }
     public void change_info(String new_name , String new_email , String new_phonenumber ,String new_password ,  String id) throws IOException {
         try(Connection connection = openConnection();
             PreparedStatement statement = connection.prepareStatement("""

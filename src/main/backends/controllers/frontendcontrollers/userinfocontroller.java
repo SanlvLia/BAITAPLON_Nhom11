@@ -38,10 +38,11 @@ import models.accounts.User;
 import javafx.collections.ObservableList;
 import Database.Inventory;
 import models.core.Item;
-import models.items.Art;
-import models.items.Electronics;
-import models.items.Vehicle;
+import models.items.*;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 
 import java.io.IOException;
@@ -113,11 +114,13 @@ public class userinfocontroller {
     private Consumer<String> auctionStartHandler;
     private Consumer<String> removeitemHandler;
     private Consumer<String> actionAcceptedHandler;
+    private Consumer<String> auctionHandler;
     private volatile LocalDateTime endAt;
     private volatile String currentAuctionId;
     private Timeline timeline;
     private Timeline upcomingSyncTimeline;
-
+    private static double currentBalance;
+    private double startingPrice;
 
     @FXML
     public void initialize() throws Exception {
@@ -125,11 +128,13 @@ public class userinfocontroller {
         if (UserSession.getCurrentUser() != null) {
             setUser(UserSession.getCurrentUser());
         }
+        loadCurrentAmount();
         high_bidder.setEditable(false);
         current_amount.setEditable(false);
         itemName.setEditable(false);
         baseprice.setEditable(false);
         increment.setEditable(false);
+        UserSession.getConnection().send(new FetchDataRequest("FETCH_INVENTORY"));
         loaduser_request();
         remove_itemResult();
         loadupcomingAuctions();
@@ -137,10 +142,24 @@ public class userinfocontroller {
         subcribePlaceBid();
         subscribeAdditemResult();
         subscribechangeResult();
+        subscribeAuction();
         subscribeAuctionStart();
         subscribeActionAccepted();
         subscribeAuctionList();
         startUIUpdater();
+        System.out.println(UserSession.getCurrentUser().getId());
+    }
+
+    private void loadCurrentAmount() {
+        Platform.runLater(() -> balance.setText("0.0"));
+        Message get = new Message();
+        get.messageType = "GET_BALANCE";
+        get.Id_user = UserSession.getCurrentUser().getId();
+        UserSession.getConnection().send(get);
+    }
+
+    public static double get_Balance() {
+        return currentBalance;
     }
 
     private void loadupcomingAuctions() {
@@ -164,24 +183,14 @@ public class userinfocontroller {
             }
             String type = resolveMessageType(node);
             switch (type) {
-                case "AUCTION_ITEMS_RESPONSE" -> {
-                    AuctionItemsResponse msg;
-                    try {
-                        msg = mapper.readValue(json, AuctionItemsResponse.class);
-                        List<Item> items = msg.items.stream()
-                                .map(dto -> switch (dto.getType()) {
-                                    case "Electronics" -> new Electronics(dto.getId(), dto.getName(), dto.getPrice(), dto.getInfo());
-                                    case "Art" -> new Art(dto.getId(), dto.getName(), dto.getPrice(), dto.getInfo());
-                                    case "Vehicle" -> new Vehicle(dto.getId(), dto.getName(), dto.getPrice(), dto.getInfo());
-                                    default -> throw new IllegalArgumentException("Unknown type: " + dto.getType());
-                                })
-                                .toList();
+                case "INVENTORY_DATA" -> {
+                    List<Item> scheduled = parseItemsFromJson(node.path("scheduledItems"));
+                    List<Item> inProgress = parseItemsFromJson(node.path("inProgressItems"));
+                    List<Item> items = new ArrayList<>();
+                    items.addAll(scheduled);
+                    items.addAll(inProgress);
 
-                        Platform.runLater(() -> ITEMLIST.setItems(FXCollections.observableArrayList(items)));
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    }
-
+                    Platform.runLater(() -> upcomingAuctions.setAll(items));
                 }
             }
         });
@@ -304,7 +313,93 @@ public class userinfocontroller {
 
         MessageBus.getInstance().subscribe(auctionStartHandler);
     }
+    private void subscribeAuction() {
+        auctionHandler = json -> {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode node = null;
+            try {
+                node = mapper.readTree(json);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+            String type = resolveMessageType(node);
+            switch (type) {
+                case ("AUCTION_STATUS") -> {
+                    try {
+                        AuctionStatusMessage statusMsg = mapper.readValue(json, AuctionStatusMessage.class);
+                        Platform.runLater(() -> {
+                            if(statusMsg.status.equals("STARTED")) {
+                                currentAuctionId = statusMsg.auctionId;
+                                endAt = Instant.ofEpochMilli(statusMsg.endTimeEpoch)
+                                        .atZone(ZoneId.systemDefault())
+                                        .toLocalDateTime();
+                            } else if ("ENDED".equals(statusMsg.status)) {
+                                endAt = null;
+                                currentAuctionId = null;
+                                setClock0();
+                                UserSession.getConnection().send(new FetchDataRequest("FETCH_INVENTORY"));
 
+                            }
+                        });
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                }
+                case ("START_AUCTION") -> {
+                    try {
+                        StartAuctionMessage msg = mapper.readValue(json, StartAuctionMessage.class);
+                        Platform.runLater(() -> {
+                            itemName.setText(msg.itemName);
+                            baseprice.setText(String.valueOf(msg.startingPrice));
+                            startingPrice = msg.startingPrice;
+                            increment.setText(String.valueOf(msg.bidIncrement));
+                        });
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                case ("AUCTION_RESULT") -> {
+                    try {
+                        AuctionResultMessage result = mapper.readValue(json, AuctionResultMessage.class);
+                        System.out.println("Winner ID: " + result.winnerId);
+                        Platform.runLater(() -> {
+                            if (result.hasBidder == true) {
+                                if(result.winnerId.equals(UserSession.getCurrentUser().getId())) {
+                                    showAlert(Alert.AlertType.INFORMATION,
+                                            "Auction Result",
+                                            "Congratulation! You are the winner! " +
+                                                    "\nAmount: " + result.winningAmount +
+                                                    "\nItem name: " + result.itemName +
+                                                    "\n Note: Your balance will be automatically deducted to pay for the item."
+                                    );
+                                    loadCurrentAmount();
+                                }
+                                else {
+                                    showAlert(Alert.AlertType.INFORMATION,
+                                            "Auction Result",
+                                            "Winner: " + result.winnerName +
+                                                    "\nAmount: " + result.winningAmount +
+                                                    "\nItem name: " + result.itemName
+                                    );
+                                }
+                            } else {
+                                System.out.println("Khong co bid");
+                                showAlert(Alert.AlertType.INFORMATION,
+                                        "Kết quả đấu giá",
+                                        "Phiên đấu giá kết thúc — Không có người đặt giá"
+                                );
+                            }
+                        });
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            };
+        };
+
+        MessageBus.getInstance().subscribe(auctionHandler);
+    }
     private void subscribeDepositResult() {
         depositResultHandler = rawJson -> {
             try {
@@ -453,17 +548,33 @@ public class userinfocontroller {
     }
 
     public void placebid(ActionEvent event) throws IOException {
+        if (endAt == null || currentAuctionId == null) {
+            new Alert(Alert.AlertType.ERROR, "No auction is currently running", ButtonType.OK).show();
+            return;
+        }
         String amountStr = bidprice.getText();
-        Double amount;
+        double amount;
         try {
             amount = Double.parseDouble(amountStr);
+            if(amount < 0) {
+                throw new IllegalArgumentException("Invalid amount : amount must be positive");
+            }
+            if(amount < startingPrice) {
+                throw new IllegalArgumentException("Invalid amount : amount must be larger than base price");
+            }
+            if(amount > currentBalance) {
+                throw new IllegalArgumentException("Invalid amount : your balance is not enough");
+            }
         } catch (NumberFormatException e) {
-            new Alert(Alert.AlertType.ERROR, "Invalid amount", ButtonType.OK).show();
+            new Alert(Alert.AlertType.ERROR, "Invalid amount : not numbers", ButtonType.OK).show();
+            return;
+        } catch (IllegalArgumentException e) {
+            new Alert(Alert.AlertType.ERROR, String.valueOf(e), ButtonType.OK).show();
             return;
         }
         String currentUserId = UserSession.getCurrentUser().getId();
         java.time.Duration remaining = java.time.Duration.between(LocalDateTime.now(), endAt);
-        if (remaining.isZero() || remaining.isNegative()) {
+        if (remaining.isZero() || remaining.isNegative() || endAt == null) {
             new Alert(Alert.AlertType.ERROR, "The bidding period has expired", ButtonType.OK).show();
             return;
         } else {
@@ -561,33 +672,33 @@ public class userinfocontroller {
         AdditemResultHandler = rawJson -> {
             ObjectMapper mapper = new  ObjectMapper();
             try{
-               JsonNode node = mapper.readTree(rawJson);
-               String type =  node.get("type").asText();
-               Platform.runLater(()->{
-                   if (type.equals("add_item_OK") && node.has("payloadJson")) {
-                       String payloadJson = node.get("payloadJson").asText();
-                       Createitempayload payload =  new Gson().fromJson(payloadJson, Createitempayload.class);
-                       Gson gson = new Gson();
-                       String payloadjson = gson.toJson(payload);
-                       Message msg = new Message();
-                       msg.Id_user = UserSession.getCurrentUser().getId();
-                       msg.messageType = "additem";
-                       msg.payloadJson = payloadjson;
-                       String requestId = node.has("request_id") ? node.get("request_id").asText() : null;
+                JsonNode node = mapper.readTree(rawJson);
+                String type =  node.get("type").asText();
+                Platform.runLater(()->{
+                    if (type.equals("add_item_OK") && node.has("payloadJson")) {
+                        String payloadJson = node.get("payloadJson").asText();
+                        Createitempayload payload =  new Gson().fromJson(payloadJson, Createitempayload.class);
+                        Gson gson = new Gson();
+                        String payloadjson = gson.toJson(payload);
+                        Message msg = new Message();
+                        msg.Id_user = UserSession.getCurrentUser().getId();
+                        msg.messageType = "additem";
+                        msg.payloadJson = payloadjson;
+                        String requestId = node.has("request_id") ? node.get("request_id").asText() : null;
 
-                       try {
-                           myrequest.save_myrequest(msg, requestId);
-                           if (requestId != null) {
-                               AcceptedItem_info.add(requestId);
-                           }
-                       } catch (IOException e) {
-                           e.printStackTrace();
-                       }
-                   }
-                   List_AcceptedItem.setItems(AcceptedItem_info);// listview load item từ AcceptedItem_info
-                   // set up cell factory -> để tạo ra 1 dòng chứa nhiều loại icon và button tương tác
-                   List_AcceptedItem.setCellFactory(lv -> new CustomItemCell());
-               });
+                        try {
+                            myrequest.save_myrequest(msg, requestId);
+                            if (requestId != null) {
+                                AcceptedItem_info.add(requestId);
+                            }
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    List_AcceptedItem.setItems(AcceptedItem_info);// listview load item từ AcceptedItem_info
+                    // set up cell factory -> để tạo ra 1 dòng chứa nhiều loại icon và button tương tác
+                    List_AcceptedItem.setCellFactory(lv -> new CustomItemCell());
+                });
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -612,6 +723,30 @@ public class userinfocontroller {
         }
         List_AcceptedItem.setItems(AcceptedItem_info);
         List_AcceptedItem.setCellFactory(lv -> new CustomItemCell());
+    }
+    private List<Item> parseItemsFromJson(JsonNode arrayNode) {
+        List<Item> items = new ArrayList<>();
+        if (arrayNode == null || !arrayNode.isArray()) return items;
+
+        for (JsonNode node : arrayNode) {
+            try {
+                String id = node.path("id").asText("");
+                String typeStr = node.path("type").asText("");
+                String name = node.path("name").asText("");
+
+                double price = node.has("prices") ? node.path("prices").asDouble() : node.path("price").asDouble();
+                String info = node.path("info").asText("");
+
+                ItemType itemType = ItemType.valueOf(typeStr);
+                Item item = itemFactory.createItem(itemType, name, price, info);
+                item.setId(id);
+
+                items.add(item);
+            } catch (Exception e) {
+                System.err.println("Lỗi parse 1 item: " + e.getMessage());
+            }
+        }
+        return items;
     }
 }
 // custom khung cho hiện thị ở list item ,

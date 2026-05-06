@@ -4,6 +4,7 @@ import Database.Inventory;
 import Database.RequestLog;
 import com.google.gson.Gson;
 import controllers.AuctionService;
+import controllers.UserSession;
 import models.Extra.messages.Message;
 import models.bidding.Auction;
 import models.bidding.CanBidding;
