@@ -34,6 +34,7 @@ public class Inventory {
                 type TEXT NOT NULL,
                 name TEXT NOT NULL,
                 price DOUBLE,
+                bidIncrement DOUBLE DEFAULT 0,
                 itemDescription TEXT,
                 userId TEXT,
                 status VARCHAR(20),
@@ -53,16 +54,17 @@ public class Inventory {
     public void saveItem(Item item, String userId) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
-                     INSERT INTO inventory(ItemId,type,name,price,itemDescription,userId,status)
-                     VALUES(?,?,?,?,?,?,?)
+                     INSERT INTO inventory(ItemId,type,name,price,bidIncrement,itemDescription,userId,status)
+                     VALUES(?,?,?,?,?,?,?,?)
                      """)) {
             statement.setString(1, item.getId());
             statement.setString(2, item.getType());
             statement.setString(3, item.getName());
             statement.setDouble(4, item.getPrices());
-            statement.setString(5, item.getInfo());
-            statement.setString(6, userId);
-            statement.setString(7, STATUS_WAITING);
+            statement.setDouble(5, item.getBidIncrement());
+            statement.setString(6, item.getInfo());
+            statement.setString(7, userId);
+            statement.setString(8, STATUS_WAITING);
             statement.executeUpdate();
         } catch (SQLException e) {
             throw new IOException("Khong the luu san pham", e);
@@ -73,7 +75,7 @@ public class Inventory {
     public Item findById(String itemId) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
-                     SELECT ItemId, type, name, price, itemDescription
+                     SELECT ItemId, type, name, price, bidIncrement, itemDescription
                      FROM inventory
                      WHERE ItemId = ?
                      """)) {
@@ -93,7 +95,7 @@ public class Inventory {
     public List<Item> getItemsByStatus(String status) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
-                     SELECT ItemId, type, name, price, itemDescription
+                     SELECT ItemId, type, name, price, bidIncrement, itemDescription
                      FROM inventory
                      WHERE status = ?
                      """)) {
@@ -110,7 +112,7 @@ public class Inventory {
     public Item getItemtoAuction(String status) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
-                 SELECT ItemId, type, name, price, itemDescription
+                 SELECT ItemId, type, name, price, bidIncrement, itemDescription
                  FROM inventory
                  WHERE status = ?
                  ORDER BY created_at ASC
@@ -134,7 +136,7 @@ public class Inventory {
     public List<Item> getItemsByUserId(String userId) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
-                     SELECT ItemId, type, name, price, itemDescription
+                     SELECT ItemId, type, name, price, bidIncrement, itemDescription
                      FROM inventory
                      WHERE userId = ?
                      """)) {
@@ -262,13 +264,16 @@ public class Inventory {
         String type = resultSet.getString("type");
         String name = resultSet.getString("name");
         double price = resultSet.getDouble("price");
+        double bidIncrement = resultSet.getDouble("bidIncrement");
         String description = resultSet.getString("itemDescription");
 
-        return switch (type) {
+        Item item = switch (type) {
             case "Electronics" -> new Electronics(itemId, name, price, description);
             case "Art" -> new Art(itemId, name, price, description);
             case "Vehicle" -> new Vehicle(itemId, name, price, description);
             default -> throw new SQLException("Loai san pham khong hop le: " + type);
         };
+        item.setBidIncrement(bidIncrement);
+        return item;
     }
 }

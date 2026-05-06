@@ -127,6 +127,10 @@ public class admininfocontroller {
 
         inventory.setCellFactory(this::createItemCell);
         upcomingitem.setCellFactory(this::createItemCell);
+        high_bidder.setEditable(false);
+        current_amount.setEditable(false);
+        baseprice.setEditable(false);
+        increment.setEditable(false);
 
         requestlist.setCellFactory(ls -> new CustomItemrequestCell(selectedRequestIds));
         requestlist.setItems(item_wait_accepted); // Khóa cứng list vào giao diện
@@ -284,6 +288,18 @@ public class admininfocontroller {
                         e.printStackTrace();
                     }
                 }
+                case "START_AUCTION" -> {
+                    try {
+                        StartAuctionMessage startMsg = mapper.readValue(json, StartAuctionMessage.class);
+                        Platform.runLater(() -> {
+                            itemname.setText(startMsg.itemName);
+                            baseprice.setText(String.valueOf(startMsg.startingPrice));
+                            increment.setText(String.valueOf(startMsg.bidIncrement));
+                        });
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
             }
         });
     }
@@ -306,6 +322,8 @@ public class admininfocontroller {
             start_end_auction.setText("END AUCTION");
             settime.setDisable(true);
             itemname.setText(item.getName());
+            baseprice.setText(String.valueOf(item.getPrices()));
+            increment.setText(String.valueOf(item.getBidIncrement()));
 
             // Cơ chế Fallback: Nếu Map không có (do vừa login lại), lấy lại từ AuctionService
             Long epoch = currentEndTimeEpochs.get(item.getId());
@@ -319,6 +337,8 @@ public class admininfocontroller {
             start_end_auction.setText("START AUCTION");
             settime.setDisable(false);
             itemname.setText(item.getName());
+            baseprice.setText(String.valueOf(item.getPrices()));
+            increment.setText(String.valueOf(item.getBidIncrement()));
             lblTimer.setText("00:00:00");
             lblTimer.setTextFill(javafx.scene.paint.Color.RED);
         }
@@ -583,11 +603,15 @@ public class admininfocontroller {
                 String name = node.path("name").asText("");
 
                 double price = node.has("prices") ? node.path("prices").asDouble() : node.path("price").asDouble();
+                double bidIncrement = node.has("bidIncrement")
+                        ? node.path("bidIncrement").asDouble()
+                        : node.path("bid_increment").asDouble(0);
                 String info = node.path("info").asText("");
 
                 ItemType itemType = ItemType.valueOf(typeStr);
                 Item item = itemFactory.createItem(itemType, name, price, info);
                 item.setId(id);
+                item.setBidIncrement(bidIncrement);
 
                 items.add(item);
             } catch (Exception e) {
