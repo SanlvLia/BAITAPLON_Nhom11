@@ -95,7 +95,12 @@ public class ServerAuctionManager {
     // Hàm phụ để đẩy tin nhắn kết thúc (Dùng chung cho cả tự động và thủ công)
     public void broadcastEnd(String itemId, Auction auction) {
         try {
-            BidBatchProcessor.getInstance().flushAuction(auction.getAuctionId());
+            String auctionId = (auction != null) ? auction.getAuctionId() : null;
+
+            if (auctionId != null) {
+                BidBatchProcessor.getInstance().flushAuction(auctionId);
+            }
+
             AuctionStatusMessage statusMsg = new AuctionStatusMessage();
             statusMsg.status = "ENDED";
             statusMsg.itemId = itemId;
@@ -120,7 +125,6 @@ public class ServerAuctionManager {
                 result.hasBidder = false;
                 result.winnerName = "Không có người thắng";
             }
-            UserStore userStore = new UserStore();
             AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(result));
         } catch (Exception e) {
             e.printStackTrace();

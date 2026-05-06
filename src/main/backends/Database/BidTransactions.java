@@ -68,7 +68,9 @@ public class BidTransactions {
                     """)) {
             statement.setString(1, auctionId);
             try(ResultSet resultSet = statement.executeQuery()) {
-                resultSet.next();
+                if (!resultSet.next()) {
+                    return null;
+                }
                 String username = (new UserStore()).getUser(resultSet.getString("bidderId")).getName();
                 String userId = (new UserStore()).getUser(resultSet.getString("bidderId")).getId();
                 return new ServerBidRespond(username, resultSet.getDouble("amount"), userId);
