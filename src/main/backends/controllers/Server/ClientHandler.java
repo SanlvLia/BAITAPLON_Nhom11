@@ -355,6 +355,16 @@ public class ClientHandler implements Runnable {
                         response.put("payloadJson", gson.toJson(payload));
 
                         send(response.toString());
+
+                        InventoryDataResponse inventoryResponse = new InventoryDataResponse();
+                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_WAITING);
+                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_SCHEDULED);
+                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_IN_PROGRESS);
+                        AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(inventoryResponse));
+
+                        RequestListDataResponse requestResponse = new RequestListDataResponse();
+                        requestResponse.requests = requestlog.getRequestsByType("additem");
+                        AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(requestResponse));
                     }
 
                 }
