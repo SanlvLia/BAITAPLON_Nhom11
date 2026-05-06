@@ -28,7 +28,7 @@ public class BidBatchProcessor {
     private final ConcurrentHashMap<String, List<PendingBid>> pendingBids = new ConcurrentHashMap<>();
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private static final int BATCH_INTERVAL_SECONDS = 5;
+    private static final int BATCH_INTERVAL_SECONDS = 1;
 
     private BidBatchProcessor() {
         scheduler.scheduleAtFixedRate(
@@ -56,6 +56,13 @@ public class BidBatchProcessor {
         for (String auctionId : new HashSet<>(pendingBids.keySet())) {
             List<PendingBid> batch = pendingBids.remove(auctionId);
             if (batch == null || batch.isEmpty()) continue;
+            processBatch(auctionId, batch);
+        }
+    }
+
+    public synchronized void flushAuction(String auctionId) {
+        List<PendingBid> batch = pendingBids.remove(auctionId);
+        if (batch != null && !batch.isEmpty()) {
             processBatch(auctionId, batch);
         }
     }

@@ -117,6 +117,7 @@ public class userinfocontroller {
     private Timeline timeline;
     private Timeline upcomingSyncTimeline;
     private static double currentBalance;
+    private double startingPrice;
 
     @FXML
     public void initialize() throws IOException {
@@ -140,6 +141,7 @@ public class userinfocontroller {
         subscribeAuction();
         subscribeAuctionList();
         startUIUpdater();
+        System.out.println(UserSession.getCurrentUser().getId());
     }
 
     private void loadCurrentAmount() {
@@ -314,7 +316,44 @@ public class userinfocontroller {
                         Platform.runLater(() -> {
                             itemName.setText(msg.itemName);
                             baseprice.setText(String.valueOf(msg.startingPrice));
+                            startingPrice = msg.startingPrice;
                             increment.setText(String.valueOf(msg.bidIncrement));
+                        });
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                case ("AUCTION_RESULT") -> {
+                    try {
+                        AuctionResultMessage result = mapper.readValue(json, AuctionResultMessage.class);
+                        System.out.println("Winner ID: " + result.winnerId);
+                        Platform.runLater(() -> {
+                            if (result.hasBidder == true) {
+                                if(result.winnerId.equals(UserSession.getCurrentUser().getId())) {
+                                    showAlert(Alert.AlertType.INFORMATION,
+                                            "Auction Result",
+                                            "Congratulation! You are the winner! " +
+                                                    "\nAmount: " + result.winningAmount +
+                                                    "\nItem name: " + result.itemName +
+                                                    "\n Note: Your balance will be automatically deducted to pay for the item."
+                                    );
+                                    loadCurrentAmount();
+                                }
+                                else {
+                                    showAlert(Alert.AlertType.INFORMATION,
+                                            "Auction Result",
+                                            "Winner: " + result.winnerName +
+                                                    "\nAmount: " + result.winningAmount +
+                                                    "\nItem name: " + result.itemName
+                                    );
+                                }
+                            } else {
+                                System.out.println("Khong co bid");
+                                showAlert(Alert.AlertType.INFORMATION,
+                                        "Kết quả đấu giá",
+                                        "Phiên đấu giá kết thúc — Không có người đặt giá"
+                                );
+                            }
                         });
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
@@ -325,6 +364,8 @@ public class userinfocontroller {
 
         MessageBus.getInstance().subscribe(auctionHandler);
     }
+
+
 
     private void subscribeDepositResult() {
         depositResultHandler = rawJson -> {
@@ -398,11 +439,14 @@ public class userinfocontroller {
             return;
         }
         String amountStr = bidprice.getText();
-        Double amount;
+        double amount;
         try {
             amount = Double.parseDouble(amountStr);
             if(amount < 0) {
                 throw new IllegalArgumentException("Invalid amount : amount must be positive");
+            }
+            if(amount < startingPrice) {
+                throw new IllegalArgumentException("Invalid amount : amount must be larger than base price");
             }
             if(amount > currentBalance) {
                 throw new IllegalArgumentException("Invalid amount : your balance is not enough");
