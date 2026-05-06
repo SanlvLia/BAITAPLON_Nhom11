@@ -20,4 +20,7 @@ public class StartAuctionMessage {
         this.startingPrice = startingPrice;
         this.bidIncrement = bidIncrement;
     }
+
+    public StartAuctionMessage(long endTimeEpoch, String name, String auctionId, Double prices, double bidIncrement) {
+    }
 }

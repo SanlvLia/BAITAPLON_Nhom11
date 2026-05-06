@@ -56,6 +56,19 @@ public class depositcontroller {
             try {
                 ObjectNode node = (ObjectNode) mapper.readTree(rawJson);
                 String type = node.get("type").asText();
+                if (type.equals("deposit_OK") && node.has("payloadJson")) {
+                    ObjectNode payloadNode = (ObjectNode) mapper.readTree(node.get("payloadJson").asText());
+                    double latestBalance = payloadNode.get("amount").asDouble();
+                    Platform.runLater(() -> {
+                        showAlert(
+                                Alert.AlertType.INFORMATION,
+                                "thành công",
+                                "Nạp tiền thành công!\n: " + String.format("%.2f", latestBalance)
+                        );
+                        closeWindow();
+                    });
+                    return;
+                }
                 Platform.runLater(() -> {
                     if (type.equals("deposit_OK")) {
                         showAlert(Alert.AlertType.INFORMATION, "Thành công", "Nạp tiền thành công!");

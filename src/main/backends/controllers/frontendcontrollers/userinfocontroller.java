@@ -408,6 +408,19 @@ public class userinfocontroller {
                 JsonNode node = mapper.readTree(rawJson);
                 String type = node.get("type").asText();
 
+                if (type.equals("BALANCE_OK") && node.has("amount")) {
+                    double latestBalance = node.get("amount").asDouble();
+                    currentBalance = latestBalance;
+
+                    User currentUser = UserSession.getCurrentUser();
+                    if (currentUser != null) {
+                        currentUser.setBalance(latestBalance);
+                    }
+
+                    Platform.runLater(() -> balance.setText(String.valueOf(latestBalance)));
+                    return;
+                }
+
                 if (type.equals("deposit_OK") && node.has("payloadJson")) {
                     String payloadjson = node.get("payloadJson").asText();
                     Gson gson = new Gson();
@@ -420,7 +433,8 @@ public class userinfocontroller {
                         return;
                     }
 
-                    double updatedBalance = currentUser.getBalance() + depositedAmount;
+                    double updatedBalance = depositedAmount;
+                    currentBalance = updatedBalance;
                     currentUser.setBalance(updatedBalance);
                     Platform.runLater(() -> balance.setText(String.valueOf(updatedBalance)));
                 }
@@ -479,6 +493,7 @@ public class userinfocontroller {
             return;
         }
 
+        currentBalance = user.getBalance();
         infoname.setText(user.getName());
         infoemail.setText(user.getEmail());
         infophonenumber.setText(user.getPhoneNumber());
@@ -810,18 +825,18 @@ class CustomItemCell extends ListCell<String>{
             }
         });
         remove_item.setOnAction(event ->{
-             String item = getItem();// trả về id_request
+            String item = getItem();// trả về id_request
 
-             Gson gson = new Gson();
-             RemoveRequestpayload payload = new RemoveRequestpayload(item , myrequest.getStatusById(item));
-             String payloadjson = gson.toJson(payload);
+            Gson gson = new Gson();
+            RemoveRequestpayload payload = new RemoveRequestpayload(item , myrequest.getStatusById(item));
+            String payloadjson = gson.toJson(payload);
 
-             Message msg = new Message();
-             msg.Id_user = UserSession.getCurrentUser().getId();
-             msg.messageType = "removeitem";
-             msg.payloadJson = payloadjson;
+            Message msg = new Message();
+            msg.Id_user = UserSession.getCurrentUser().getId();
+            msg.messageType = "removeitem";
+            msg.payloadJson = payloadjson;
 
-             UserSession.getConnection().send(msg);
+            UserSession.getConnection().send(msg);
             System.out.println("đã xóa item khỏi history");
         });
 
@@ -848,4 +863,3 @@ class CustomItemCell extends ListCell<String>{
             setGraphic(null);
     }
 }
-

@@ -188,7 +188,6 @@ public class ClientHandler implements Runnable {
                                     payload.getBasePrice(),
                                     payload.getItemInfo()
                             );
-                            item.setBidIncrement(payload.getBidIncrement());
 
                             // Lưu vào Inventory và đổi trạng thái Request
                             inventoryDB.saveItem(item, request.userId(),request.id());
@@ -196,11 +195,17 @@ public class ClientHandler implements Runnable {
                             // gửi tín hiệu cho usercontroller tự cập nhật dữ liệu (trạng thái của item)
                             ObjectNode response =  mapper.createObjectNode();
                             response.put("type", "ACCEPTED_SUCCESS");
-                            response.put("user_id" , cmd.userId);
+                            String targetUserId = (cmd.userId != null && !cmd.userId.isBlank())
+                                    ? cmd.userId
+                                    : request.userId();
+                            response.put("user_id" , targetUserId);
                             response.put("request_id" ,  cmd.targetId);
                             response.put("status" , RequestLog.STATUS_ACCEPTED);
 
-                            AuctionRoom.getInstance().connectors.get(cmd.userId).send(String.valueOf(response));
+                            ClientHandler targetHandler = AuctionRoom.getInstance().connectors.get(targetUserId);
+                            if (targetHandler != null) {
+                                targetHandler.send(String.valueOf(response));
+                            }
 
                             ObjectNode ack = mapper.createObjectNode();
                             ack.put("type", "ACTION_SUCCESS");
@@ -375,7 +380,7 @@ public class ClientHandler implements Runnable {
 
     private String okJson(Double amount) {
         ObjectNode node = mapper.createObjectNode();
-        node.put("type", "deposit_OK");
+        node.put("type", "BALANCE_OK");
         node.put("amount", amount);
         return node.toString();
     }
