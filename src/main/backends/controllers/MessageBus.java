@@ -35,7 +35,12 @@ public class MessageBus {
         System.out.println("[MessageBus] Dispatching message: " + rawJson);
         for (Consumer<String> sub : subscribers) {
             System.out.println("[MessageBus] Sending to subscriber: " + sub);
-            sub.accept(rawJson);
+            try {
+                sub.accept(rawJson);
+            } catch (Exception e) {
+                System.err.println("[MessageBus] Subscriber failed: " + e.getMessage());
+                e.printStackTrace();
+            }
         }
     }
 }

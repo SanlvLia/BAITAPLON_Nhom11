@@ -13,12 +13,16 @@ import models.bidding.Auction;
 import models.core.Item;
 import models.Extra.messages.AuctionStatusMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.time.LocalDateTime;
 
 public class ServerAuctionManager {
     private static ServerAuctionManager instance;
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     // Tạo 1 Admin giả lập đại diện cho Server để truyền vào hàm startAuction của bạn
     private final Admin serverAdmin = new Admin(
@@ -50,7 +54,6 @@ public class ServerAuctionManager {
         try {
             Inventory inventoryDB = new Inventory();
             Item item = inventoryDB.findById(itemId);
-
             if (item == null) {
                 System.out.println("[Server] Loi: Khong tim thay item " + itemId);
                 return;
@@ -58,7 +61,6 @@ public class ServerAuctionManager {
 
             // Gọi AuctionService của bạn (Nó sẽ tự lo Timer và set DB IN_PROGRESS)
             Auction auction = AuctionService.startAuction(serverAdmin, item, 0, durationMinutes, 0);
-
             // Báo cho tất cả Client/Admin trên mạng lưới biết
             AuctionStatusMessage statusMsg = new AuctionStatusMessage();
             statusMsg.status = "STARTED";
@@ -67,12 +69,14 @@ public class ServerAuctionManager {
             statusMsg.endTimeEpoch = System.currentTimeMillis() + (durationMinutes * 60000L);
 
             AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(statusMsg));
+            String sellerId = inventoryDB.getUserIdByItemId(auction.getItem().getId());
             StartAuctionMessage start_msg = new StartAuctionMessage(
                     statusMsg.endTimeEpoch,
                     auction.getItem().getName(),
+                    sellerId,
                     auction.getAuctionId(),
                     auction.getItem().getPrices(),
-                    auction.getItem().getBidIncrement()
+                    item.getBidIncrement()
             );
             AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(start_msg));
         } catch (Exception e) {

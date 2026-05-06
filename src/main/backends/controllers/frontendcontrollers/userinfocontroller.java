@@ -121,6 +121,9 @@ public class userinfocontroller {
     private Timeline upcomingSyncTimeline;
     private static double currentBalance;
     private double startingPrice;
+    private double currentBidIncrement;
+    private double currentBiddingAmount;
+    private String currentSellerId;
 
     @FXML
     public void initialize() throws Exception {
@@ -262,6 +265,7 @@ public class userinfocontroller {
                         Platform.runLater(() -> {
                             high_bidder.setText(String.valueOf(maxBidder_msg.maxBidder.name));
                             current_amount.setText(String.valueOf(maxBidder_msg.maxBidder.amount));
+                            currentBiddingAmount = maxBidder_msg.maxBidder.amount;
                             placebid.setDisable(false);
                             bidprice.setDisable(false);
                             bidprice.clear();
@@ -297,7 +301,9 @@ public class userinfocontroller {
                             msg = mapper.readValue(rawJson, StartAuctionMessage.class);
                             baseprice.setText(Double.toString(msg.startingPrice));
                             increment.setText(Double.toString(msg.bidIncrement));
+                            currentBidIncrement = msg.bidIncrement;
                             endAt = msg.endAt;
+                            currentSellerId = msg.sellerId;
                             itemName.setText(msg.itemName);
                             currentAuctionId = msg.auctionId;
                         } catch (JsonProcessingException e) {
@@ -311,7 +317,6 @@ public class userinfocontroller {
                 throw new RuntimeException(e);
             }
         };
-
         MessageBus.getInstance().subscribe(auctionStartHandler);
     }
     private void subscribeAuction() {
@@ -334,6 +339,10 @@ public class userinfocontroller {
                                 endAt = Instant.ofEpochMilli(statusMsg.endTimeEpoch)
                                         .atZone(ZoneId.systemDefault())
                                         .toLocalDateTime();
+                                Item runningItem = findItemById(statusMsg.itemId);
+                                if (runningItem != null) {
+                                    applyAuctionItemDetails(runningItem);
+                                }
                             } else if ("ENDED".equals(statusMsg.status)) {
                                 endAt = null;
                                 currentAuctionId = null;
@@ -349,12 +358,20 @@ public class userinfocontroller {
                 }
                 case ("START_AUCTION") -> {
                     try {
-                        StartAuctionMessage msg = mapper.readValue(json, StartAuctionMessage.class);
+                        ObjectMapper startMapper = new ObjectMapper()
+                                .registerModule(new JavaTimeModule())
+                                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                        StartAuctionMessage msg = startMapper.readValue(json, StartAuctionMessage.class);
                         Platform.runLater(() -> {
                             itemName.setText(msg.itemName);
                             baseprice.setText(String.valueOf(msg.startingPrice));
                             startingPrice = msg.startingPrice;
+
                             increment.setText(String.valueOf(msg.bidIncrement));
+                            if (msg.endAt != null) {
+                                endAt = msg.endAt;
+                            }
+                            currentAuctionId = msg.auctionId;
                         });
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
@@ -575,11 +592,21 @@ public class userinfocontroller {
             if(amount < 0) {
                 throw new IllegalArgumentException("Invalid amount : amount must be positive");
             }
-            if(amount < startingPrice) {
-                throw new IllegalArgumentException("Invalid amount : amount must be larger than base price");
+            if(currentSellerId.equals(UserSession.getCurrentUser().getId())) {
+                throw new IllegalArgumentException("Error: You can not place a bid on the item you sale!");
+            }
+            if(amount < startingPrice + currentBidIncrement) {
+                double temp = startingPrice + currentBidIncrement;
+                System.out.println("TEMP: " + temp);
+                throw new IllegalArgumentException("Invalid amount : amount must be larger than " + temp + "!");
             }
             if(amount > currentBalance) {
                 throw new IllegalArgumentException("Invalid amount : your balance is not enough");
+            }
+            if(amount < currentBiddingAmount + currentBidIncrement ) {
+                double temp = currentBiddingAmount + currentBidIncrement;
+                System.out.println("TEMP: " + temp);
+                throw new IllegalArgumentException("Invalid amount : amount must be larger than " + temp + "!");
             }
         } catch (NumberFormatException e) {
             new Alert(Alert.AlertType.ERROR, "Invalid amount : not numbers", ButtonType.OK).show();
@@ -609,6 +636,29 @@ public class userinfocontroller {
         long s = remaining.toSecondsPart();
         lblTimer.setText(String.format("%02d:%02d:%02d", h, m, s));
         lblTimer.setTextFill(javafx.scene.paint.Color.web("#fbbf24"));
+    }
+
+    private void applyAuctionItemDetails(Item item) {
+        if (item == null) {
+            return;
+        }
+        itemName.setText(item.getName());
+        baseprice.setText(String.valueOf(item.getPrices()));
+        startingPrice = item.getPrices();
+        increment.setText(String.valueOf(item.getBidIncrement()));
+        currentBidIncrement = item.getBidIncrement();
+    }
+
+    private Item findItemById(String itemId) {
+        if (itemId == null || itemId.isBlank()) {
+            return null;
+        }
+        for (Item item : upcomingAuctions) {
+            if (itemId.equals(item.getId())) {
+                return item;
+            }
+        }
+        return null;
     }
 
     private String resolveMessageType(JsonNode node) {

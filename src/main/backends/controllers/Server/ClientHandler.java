@@ -186,7 +186,8 @@ public class ClientHandler implements Runnable {
                                     itemType,
                                     payload.getItem_name(),
                                     payload.getBasePrice(),
-                                    payload.getItemInfo()
+                                    payload.getItemInfo(),
+                                    payload.getBidIncrement()
                             );
 
                             // Lưu vào Inventory và đổi trạng thái Request

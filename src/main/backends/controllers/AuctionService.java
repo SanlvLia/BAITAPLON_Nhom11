@@ -92,7 +92,7 @@ public final class AuctionService {
             auction.start(now);
             scheduleAutoClose(auction, duration);
         } catch (Exception e) {
-            unregisterActiveAuction(item.getId());
+            unregisterActiveAuction(auction);
             throw e;
         }
         return auction;
@@ -143,7 +143,7 @@ public final class AuctionService {
         Auction managedAuction = resolveAuction(auction);
         managedAuction.end(time);
         syncAuctionClosure(managedAuction);
-        unregisterActiveAuction(managedAuction.getItem().getId());
+        unregisterActiveAuction(managedAuction);
     }
 
     // Huy phien dang dau gia, dua item ve lai WAITING va bo khoi registry active.
@@ -155,7 +155,7 @@ public final class AuctionService {
         Auction managedAuction = resolveAuction(auction);
         managedAuction.cancel();
         syncAuctionCancellation(managedAuction);
-        unregisterActiveAuction(managedAuction.getItem().getId());
+        unregisterActiveAuction(managedAuction);
     }
 
     // Khoi phuc cac phien ACTIVE tu DB khi app/server bat lai.
@@ -258,9 +258,9 @@ public final class AuctionService {
     }
 
     // Xoa phien khoi registry active va huy job auto-close da dang ky truoc do.
-    private static void unregisterActiveAuction(String itemId) {
-        ACTIVE_AUCTIONS.remove(itemId);
-        cancelScheduledTask(itemId);
+    private static void unregisterActiveAuction(Auction auction) {
+        ACTIVE_AUCTIONS.remove(auction.getItem().getId());
+        cancelScheduledTask(auction.getAuctionId());
     }
 
     public static Duration getDuration(String itemId) {
