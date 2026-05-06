@@ -67,7 +67,13 @@ public class ServerAuctionManager {
             statusMsg.endTimeEpoch = System.currentTimeMillis() + (durationMinutes * 60000L);
 
             AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(statusMsg));
-            StartAuctionMessage start_msg = new StartAuctionMessage(statusMsg.endTimeEpoch, auction.getItem().getName(), auction.getAuctionId(), auction.getItem().getPrices(),0 );
+            StartAuctionMessage start_msg = new StartAuctionMessage(
+                    statusMsg.endTimeEpoch,
+                    auction.getItem().getName(),
+                    auction.getAuctionId(),
+                    auction.getItem().getPrices(),
+                    auction.getItem().getBidIncrement()
+            );
             AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(start_msg));
         } catch (Exception e) {
             System.err.println("[Server] Loi start auction: " + e.getMessage());

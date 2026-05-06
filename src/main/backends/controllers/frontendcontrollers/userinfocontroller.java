@@ -169,6 +169,7 @@ public class userinfocontroller {
             if (selected == null) return;
             itemName.setText(selected.getName());
             baseprice.setText(Double.toString(selected.getPrices()));
+            increment.setText(String.valueOf(selected.getBidIncrement()));
         });
     }
 
@@ -735,11 +736,15 @@ public class userinfocontroller {
                 String name = node.path("name").asText("");
 
                 double price = node.has("prices") ? node.path("prices").asDouble() : node.path("price").asDouble();
+                double bidIncrement = node.has("bidIncrement")
+                        ? node.path("bidIncrement").asDouble()
+                        : node.path("bid_increment").asDouble(0);
                 String info = node.path("info").asText("");
 
                 ItemType itemType = ItemType.valueOf(typeStr);
                 Item item = itemFactory.createItem(itemType, name, price, info);
                 item.setId(id);
+                item.setBidIncrement(bidIncrement);
 
                 items.add(item);
             } catch (Exception e) {

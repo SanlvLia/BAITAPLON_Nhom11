@@ -8,6 +8,7 @@ public abstract class Item extends Entity {
     protected String name;
     protected double prices;
     protected String info;
+    protected double bidIncrement;
 
     public Item(String id, String name, double prices, String info) {
         this.id = id;
@@ -26,6 +27,14 @@ public abstract class Item extends Entity {
 
     public String getInfo() {
         return info;
+    }
+
+    public double getBidIncrement() {
+        return bidIncrement;
+    }
+
+    public void setBidIncrement(double bidIncrement) {
+        this.bidIncrement = bidIncrement;
     }
 
     public String getType() {
