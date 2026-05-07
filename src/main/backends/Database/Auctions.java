@@ -40,7 +40,7 @@ public class Auctions {
         }
     }
 
-    public void saveAuction(Auction auction) throws IOException {
+    public synchronized void saveAuction(Auction auction) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
                      INSERT INTO auctions(auctionId,startAt,endAt,status,ItemId,highestBid,highestBidderId)
@@ -59,7 +59,7 @@ public class Auctions {
         }
     }
 
-    public void updateHighestBid(String auctionId, double highestBid, String highestBidderId) throws IOException {
+    public synchronized void updateHighestBid(String auctionId, double highestBid, String highestBidderId) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
                      UPDATE auctions
@@ -75,7 +75,7 @@ public class Auctions {
         }
     }
 
-    public void updateAuctionState(String auctionId, Auction.Status status, LocalDateTime endAt, double highestBid, String highestBidderId) throws IOException {
+    public synchronized void updateAuctionState(String auctionId, Auction.Status status, LocalDateTime endAt, double highestBid, String highestBidderId) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
                      UPDATE auctions
@@ -154,7 +154,7 @@ public class Auctions {
         }
     }
 
-    private void initializeStorage() throws IOException, SQLException {
+    private synchronized void initializeStorage() throws IOException, SQLException {
         ensureDataDirectoryExists();
         try (Connection connection = openConnection();
              Statement statement = connection.createStatement()) {

@@ -161,7 +161,7 @@ public class UserStore {
         }
     }
 
-    public void saveUser(User user) throws IOException {
+    public synchronized void saveUser(User user) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
                      INSERT INTO users (id, name, email ,phone_number, password , balance,role)
@@ -179,7 +179,7 @@ public class UserStore {
             throw new IOException("Khong the luu nguoi dung vao SQLite.", e);
         }
     }
-    public void saveAdmin(Admin admin) throws IOException {
+    public synchronized void saveAdmin(Admin admin) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
                      INSERT INTO users (id, name, email ,phone_number, password , balance,role)
@@ -197,7 +197,7 @@ public class UserStore {
             throw new IOException("Khong the luu nguoi dung vao SQLite.", e);
         }
     }
-    public void update_balance(double new_balance, String userId) throws IOException {
+    public synchronized void update_balance(double new_balance, String userId) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
                      UPDATE users
@@ -236,7 +236,7 @@ public class UserStore {
             throw new IOException("Khong the lay balance tu SQLite.", e);
         }
     }
-    public void change_info(String new_name , String new_email , String new_phonenumber ,String new_password ,  String id) throws IOException {
+    public synchronized void change_info(String new_name , String new_email , String new_phonenumber ,String new_password ,  String id) throws IOException {
         try(Connection connection = openConnection();
             PreparedStatement statement = connection.prepareStatement("""
                   UPDATE users
@@ -259,7 +259,7 @@ public class UserStore {
         }
     }
 
-    private void initializeStorage() throws IOException, SQLException {
+    private synchronized void initializeStorage() throws IOException, SQLException {
         ensureDataDirectoryExists();
         try (Connection connection = openConnection();
              Statement statement = connection.createStatement()) {

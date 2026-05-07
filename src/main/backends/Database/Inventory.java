@@ -52,7 +52,7 @@ public class Inventory {
     }
 
     //Lưu sản phẩm vào kho dùng khi tạo accept request ở requestlog
-    public void saveItem(Item item, String userId ,String request_id) throws IOException {
+    public synchronized void saveItem(Item item, String userId ,String request_id) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
                      INSERT INTO inventory(ItemId,type,name,price,bidIncrement,itemDescription,request_id,userId,status)
@@ -191,7 +191,7 @@ public class Inventory {
     }
 
     // Cập nhât status cho Item (Waiting -> InAuction -> Sold)
-    public void updateItemStatus(List<String> itemIds, String status) throws IOException {
+    public synchronized void updateItemStatus(List<String> itemIds, String status) throws IOException {
         if (itemIds == null || itemIds.isEmpty()) {
             return;
         }
@@ -213,7 +213,7 @@ public class Inventory {
         }
     }
 
-    public void updateItemStatus(String itemId, String status) throws IOException {
+    public synchronized void updateItemStatus(String itemId, String status) throws IOException {
         if (itemId == null) {
             return;
         }
@@ -251,7 +251,7 @@ public class Inventory {
             return false;
         }
     }
-    public void removeItem(String requestId) throws IOException {
+    public synchronized void removeItem(String requestId) throws IOException {
         try(Connection connection = openConnection();
             PreparedStatement statement = connection.prepareStatement("""
              DELETE FROM inventory
@@ -267,7 +267,7 @@ public class Inventory {
         }
     }
 
-    private void initializeStorage() throws IOException, SQLException {
+    private synchronized void initializeStorage() throws IOException, SQLException {
         ensureDataDirectoryExists();
         try (Connection connection = openConnection();
              Statement statement = connection.createStatement()) {

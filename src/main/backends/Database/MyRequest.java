@@ -43,7 +43,7 @@ public class MyRequest {
         }
     }
     // DÙNG HÀM này khi tạo mới 1 request
-    public static void save_myrequest(Message message, String requestId) throws  IOException {
+    public synchronized static void save_myrequest(Message message, String requestId) throws  IOException {
         try(Connection connection = openConnection();
             PreparedStatement statement = connection.prepareStatement("""
             INSERT INTO my_request (request_id, id_user , request_type , request_info , status) VALUES (?, ? , ? , ?  , ?)""")
@@ -101,7 +101,7 @@ public class MyRequest {
 
         return null;
     }
-    public void updateRequestStatus(String requestId, String status) throws IOException {
+    public synchronized void updateRequestStatus(String requestId, String status) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  UPDATE my_request
@@ -143,7 +143,7 @@ public class MyRequest {
         }
     }
 
-    public void deleteMyRequests(List<Integer> requestIds) throws IOException {
+    public synchronized void deleteMyRequests(List<Integer> requestIds) throws IOException {
         if (requestIds == null || requestIds.isEmpty()) {
             return;
         }
@@ -162,7 +162,7 @@ public class MyRequest {
             throw new IOException("Khong the xoa request", e);
         }
     }
-    public void remove_request(String requestId) throws  IOException {
+    public synchronized void remove_request(String requestId) throws  IOException {
         try(Connection connection = openConnection();
             PreparedStatement statement = connection.prepareStatement("""
               DELETE FROM my_request
@@ -177,7 +177,7 @@ public class MyRequest {
 
     }
 
-    private void initializeRequest_Log() throws IOException, SQLException {
+    private synchronized void initializeRequest_Log() throws IOException, SQLException {
         ensureDataDirectoryExists();
         try(Connection conn = openConnection();
             Statement statement = conn.createStatement()){

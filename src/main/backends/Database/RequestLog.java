@@ -40,7 +40,7 @@ public class RequestLog {
         }
     }
     // ============dùng cho khi add new item ============================
-    public static String save_request(Message message) throws  IOException {
+    public synchronized static String save_request(Message message) throws  IOException {
         String requestId = "REQ" + IdGenerator.nextId();
         try(Connection connection = openConnection();
             PreparedStatement statement = connection.prepareStatement("""
@@ -133,7 +133,7 @@ public class RequestLog {
         return null;
     }
 
-    public void updateRequestStatus(String requestId, String status) throws IOException {
+    public synchronized void updateRequestStatus(String requestId, String status) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
                      UPDATE request_log
@@ -148,7 +148,7 @@ public class RequestLog {
         }
     }
 
-    public void deleteRequests(List<String> requestIds) throws IOException {
+    public synchronized void deleteRequests(List<String> requestIds) throws IOException {
         if (requestIds == null || requestIds.isEmpty()) {
             return;
         }
@@ -167,7 +167,7 @@ public class RequestLog {
             throw new IOException("Khong the xoa request", e);
         }
     }
-    public void set_selected_request(String request_id,boolean selected){
+    public synchronized void set_selected_request(String request_id,boolean selected){
         try(Connection connection = openConnection();
             PreparedStatement statement = connection.prepareStatement("""
             UPDATE request_log
@@ -228,7 +228,7 @@ public class RequestLog {
             throw new IOException("Khong the lay user id theo request id", e);
         }
     }
-    public void removeRequest(String requestId) throws IOException {
+    public synchronized void removeRequest(String requestId) throws IOException {
         try(Connection connection = openConnection();
             PreparedStatement statement = connection.prepareStatement("""
              DELETE FROM request_log
@@ -262,7 +262,7 @@ public class RequestLog {
         }
     }
 
-    private void initializeRequest_Log() throws IOException, SQLException {
+    private synchronized void initializeRequest_Log() throws IOException, SQLException {
         ensureDataDirectoryExists();
         try(Connection conn = openConnection();
             Statement statement = conn.createStatement()){

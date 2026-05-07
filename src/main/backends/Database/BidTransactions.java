@@ -40,7 +40,7 @@ public class BidTransactions {
         }
     }
 
-    public void saveBid(String auctionId, BidTransaction bid) throws IOException {
+    public synchronized void saveBid(String auctionId, BidTransaction bid) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""
                      INSERT INTO bid_transactions(auctionId, bidderId, itemId, amount, bidTime)
@@ -107,7 +107,7 @@ public class BidTransactions {
         }
     }
 
-    private void initializeStorage() throws IOException, SQLException {
+    private synchronized void initializeStorage() throws IOException, SQLException {
         ensureDataDirectoryExists();
         try (Connection connection = openConnection();
              Statement statement = connection.createStatement()) {

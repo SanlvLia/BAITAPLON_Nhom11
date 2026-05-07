@@ -1,7 +1,7 @@
 package models.Extra.messages;
 
 public enum MessageType {
-//    deposit,
+// x   deposit,
 //    info_change,
     additem,
 // when put a new type JUST put it in
