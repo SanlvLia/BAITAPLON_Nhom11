@@ -50,7 +50,7 @@ import java.util.List;
 import java.time.LocalDateTime;
 import java.util.function.Consumer;
 
-public class userinfocontroller {
+public class UserInfoController {
     @FXML
     private Label infoname;
 
@@ -475,7 +475,7 @@ public class userinfocontroller {
 
                 String requestId = node.path("request_id").asText("");
                 String userId = node.path("user_id").asText("");
-                String status = node.path("status").asText(MyRequest.STATUS_ACCEPTED);
+                String status = node.path("status").asText(MyRequest.STATUS_WAITING);
 
                 User currentUser = UserSession.getCurrentUser();
                 if (currentUser == null || requestId.isBlank()) {
@@ -787,6 +787,7 @@ public class userinfocontroller {
                 AcceptedItem_info.add(request.requestId());
             }
         }
+
         List_AcceptedItem.setItems(AcceptedItem_info);
         List_AcceptedItem.setCellFactory(lv -> new CustomItemCell());
     }

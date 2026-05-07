@@ -13,7 +13,7 @@ import java.util.List;
 
 public class RequestLog {
     public static final String STATUS_PENDING = "PENDING";
-    public static final String STATUS_ACCEPTED = "ACCEPTED";
+    public static final String STATUS_WAITING = "WAITING";
     public static final String STATUS_REJECTED = "REJECTED";
 
     private static final Path DATA_DIRECTORY = Path.of("data");

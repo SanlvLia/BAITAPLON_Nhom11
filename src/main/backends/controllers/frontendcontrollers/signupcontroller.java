@@ -16,7 +16,7 @@ import models.accounts.User;
 
 import java.io.IOException;
 
-public class signupcontroller {
+public class SignUpController {
     @FXML
     public TextField txtnameup;
 

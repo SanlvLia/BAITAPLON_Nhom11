@@ -23,7 +23,7 @@ import models.core.Account;
 import java.io.IOException;
 import java.util.Optional;
 
-public class signincontroller {
+public class SignInController {
     @FXML
     public TextField txtphonenumberfield;
 

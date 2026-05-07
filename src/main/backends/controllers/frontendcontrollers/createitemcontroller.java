@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.function.Consumer;
 
 
-public class createitemcontroller {
+public class CreateItemController {
     @FXML
     public  TextArea item_info;
 

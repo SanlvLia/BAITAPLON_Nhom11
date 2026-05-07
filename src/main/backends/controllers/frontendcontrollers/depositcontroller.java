@@ -15,7 +15,7 @@ import models.Extra.messages.Depositpayload;
 import models.Extra.messages.Message;
 import java.util.function.Consumer;
 
-public class depositcontroller {
+public class DepositController {
     @FXML public TextField deposit_amount;
     @FXML public TextField name_deposit_input;
     @FXML public TextField phonenumber_deposit_input;
@@ -39,7 +39,7 @@ public class depositcontroller {
     public void handle_verify(ActionEvent event) {
         try {
             double moneyIn = Double.parseDouble(deposit_amount.getText());
-            double currentBalance = userinfocontroller.get_Balance();
+        double currentBalance = UserInfoController.get_Balance();
             double expected = currentBalance + moneyIn;
 
             // Hiển thị số dư dự kiến vào label Tổng

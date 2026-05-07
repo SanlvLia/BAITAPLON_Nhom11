@@ -175,7 +175,7 @@ public class ClientHandler implements Runnable {
                         ack.put("type", "ACTION_SUCCESS");
                         send(ack.toString());
                     }
-                    else if ("ACCEPT_REQUEST".equals(cmd.action)) {
+                    else if ("ACCEPT_REQUnEST".equals(cmd.action)) {
                         // Tìm request trong DB
                         Database.RequestLog.RequestRecord request = requestLogDB.findByRequestId(cmd.targetId);
                         if (request != null) {
@@ -192,7 +192,7 @@ public class ClientHandler implements Runnable {
 
                             // Lưu vào Inventory và đổi trạng thái Request
                             inventoryDB.saveItem(item, request.userId(),request.id());
-                            requestLogDB.updateRequestStatus(cmd.targetId, Database.RequestLog.STATUS_ACCEPTED);
+                            requestLogDB.updateRequestStatus(cmd.targetId, RequestLog.STATUS_WAITING);
                             // gửi tín hiệu cho usercontroller tự cập nhật dữ liệu (trạng thái của item)
                             ObjectNode response =  mapper.createObjectNode();
                             response.put("type", "ACCEPTED_SUCCESS");
@@ -201,7 +201,7 @@ public class ClientHandler implements Runnable {
                                     : request.userId();
                             response.put("user_id" , targetUserId);
                             response.put("request_id" ,  cmd.targetId);
-                            response.put("status" , RequestLog.STATUS_ACCEPTED);
+                            response.put("status" , RequestLog.STATUS_WAITING);
 
                             ClientHandler targetHandler = AuctionRoom.getInstance().connectors.get(targetUserId);
                             if (targetHandler != null) {
@@ -340,7 +340,7 @@ public class ClientHandler implements Runnable {
                     RequestLog requestlog = new RequestLog();
                     Inventory inventoryDB = new  Inventory();
 
-                    if( status_item.equals(MyRequest.STATUS_IN_PROGRESS) || status_item.equals(MyRequest.STATUS_WAITING)){
+                    if( status_item.equals(MyRequest.STATUS_IN_PROGRESS) || status_item.equals(MyRequest.STATUS_SCHEDULED)){
                         ObjectNode response =  mapper.createObjectNode();
                         response.put("type", "remove_item_fail");
                         send (response.toString());// gửi thông baos lỗi cho usercontroller

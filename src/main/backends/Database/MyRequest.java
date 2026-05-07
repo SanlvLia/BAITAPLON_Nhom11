@@ -17,7 +17,7 @@ public class MyRequest {
     public static final String STATUS_UNSOLD = "UNSOLD";
 
     public static final String STATUS_PENDING = "PENDING";
-    public static final String STATUS_ACCEPTED = "ACCEPTED";
+//    public static final String STATUS_ACCEPTED = "ACCEPTED";
     public static final String STATUS_REJECTED = "REJECTED";
     //                STT INTEGER PRIMARY KEY AUTOINCREMENT,
     private static final Path DATA_DIRECTORY = Path.of("data");
