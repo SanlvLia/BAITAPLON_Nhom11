@@ -30,7 +30,7 @@ public class MyRequest {
                 request_type TEXT ,
                 request_info TEXT,
                 send_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                status TEXT
+                status TEXT DEFAULT 'PENDING'
             )
             """;
 
@@ -179,8 +179,11 @@ public class MyRequest {
 
     private synchronized void initializeRequest_Log() throws IOException, SQLException {
         ensureDataDirectoryExists();
-        try(Connection conn = openConnection();
-            Statement statement = conn.createStatement()){
+        if (Files.exists(DATABASE_FILE)) {
+            Files.delete(DATABASE_FILE);
+        }
+        try (Connection conn = openConnection();
+             Statement statement = conn.createStatement()) {
             statement.executeUpdate(CREATE_REQUEST_TABLE_SQL);
         }
     }
