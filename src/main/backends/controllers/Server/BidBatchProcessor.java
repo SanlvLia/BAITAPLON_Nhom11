@@ -3,12 +3,12 @@ package controllers.Server;
 import Database.BidTransactions;
 import Database.UserStore;
 import com.google.gson.Gson;
-import models.Extra.messages.ReceiveMaxBidder;
-import models.Extra.messages.ServerBidRespond;
+import models.Extra.messages.MsgBid.ReceiveMaxBidder;
+import models.Extra.messages.MsgBid.ServerBidRespond;
 import models.bidding.BidTransaction;
 import models.core.Item;
 import models.items.ItemType;
-import models.items.itemFactory;
+import models.items.ItemFactory;
 import models.accounts.User;
 
 import java.util.*;
@@ -100,7 +100,7 @@ public class BidBatchProcessor {
 
             // Lưu tất cả bid hợp lệ trong batch vào DB
             User winnerUser = userStore.getUser(winner.userId());
-            Item dummyItem = itemFactory.createItem(ItemType.Art, "auction-item", 0, "");
+            Item dummyItem = ItemFactory.createItem(ItemType.Art, "auction-item", 0, "");
 
             for (PendingBid bid : batch) {
                 if (bid.amount() > currentMaxAmount) { // chỉ lưu bid hợp lệ

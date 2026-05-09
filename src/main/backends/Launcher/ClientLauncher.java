@@ -1,12 +1,9 @@
 package Launcher;
 
-import controllers.AdminApplication;
-import controllers.ClientApplication;
-import controllers.Server.ServerApplication;
+import Application.AdminApplication;
+import Application.ClientApplication;
+import Application.ServerApplication;
 import javafx.application.Application;
-import models.accounts.Admin;
-
-import java.util.Scanner;
 
 public class ClientLauncher {
     public static String serverIp = "localhost";

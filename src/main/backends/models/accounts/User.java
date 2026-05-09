@@ -1,22 +1,14 @@
 package models.accounts;
 
-import Database.Inventory;
-import Database.RequestLog;
-import com.google.gson.Gson;
-import controllers.AuctionService;
-import controllers.UserSession;
-import models.Extra.messages.Message;
+import Service.AuctionService;
 import models.bidding.Auction;
 import models.bidding.CanBidding;
 import models.core.Account;
 import models.core.Item;
-import models.items.ItemType;
-import models.items.itemFactory;
 import models.selling.CanSelling;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.Scanner;
 
 public class User extends Account implements CanBidding, CanSelling {
     HashSet<Item> items = new HashSet<>();

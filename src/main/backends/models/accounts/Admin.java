@@ -1,11 +1,9 @@
 package models.accounts;
 
-import controllers.AdminService;
-import javafx.scene.control.Alert;
+import Service.AdminService;
 import models.bidding.Auction;
 import models.core.Account;
 
-import javax.imageio.IIOException;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;

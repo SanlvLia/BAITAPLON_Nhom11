@@ -1,6 +1,6 @@
 package Database;
 
-import models.Extra.messages.Message;
+import models.Extra.messages.Common.Message;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,7 +17,7 @@ public class MyRequest {
     public static final String STATUS_UNSOLD = "UNSOLD";
 
     public static final String STATUS_PENDING = "PENDING";
-//    public static final String STATUS_ACCEPTED = "ACCEPTED";
+    public static final String STATUS_ACCEPTED = "ACCEPTED";
     public static final String STATUS_REJECTED = "REJECTED";
     //                STT INTEGER PRIMARY KEY AUTOINCREMENT,
     private static final Path DATA_DIRECTORY = Path.of("data");
@@ -30,7 +30,7 @@ public class MyRequest {
                 request_type TEXT ,
                 request_info TEXT,
                 send_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                status TEXT DEFAULT 'PENDING'
+                status TEXT
             )
             """;
 
@@ -179,11 +179,8 @@ public class MyRequest {
 
     private synchronized void initializeRequest_Log() throws IOException, SQLException {
         ensureDataDirectoryExists();
-        if (Files.exists(DATABASE_FILE)) {
-            Files.delete(DATABASE_FILE);
-        }
-        try (Connection conn = openConnection();
-             Statement statement = conn.createStatement()) {
+        try(Connection conn = openConnection();
+            Statement statement = conn.createStatement()){
             statement.executeUpdate(CREATE_REQUEST_TABLE_SQL);
         }
     }

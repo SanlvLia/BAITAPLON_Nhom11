@@ -1,7 +1,6 @@
 package Database;
 
-import models.Extra.messages.ServerBidRespond;
-import models.accounts.User;
+import models.Extra.messages.MsgBid.ServerBidRespond;
 import models.bidding.BidTransaction;
 
 import java.io.IOException;

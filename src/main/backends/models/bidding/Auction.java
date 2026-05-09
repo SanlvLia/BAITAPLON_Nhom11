@@ -1,13 +1,9 @@
 package models.bidding;
 
-import com.google.gson.Gson;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import controllers.AuctionService;
-import controllers.Server.AuctionRoom;
 import models.Extra.IdGenerator;
-import models.Extra.messages.StartAuctionMessage;
 import models.core.Item;
 
 import java.time.Duration;

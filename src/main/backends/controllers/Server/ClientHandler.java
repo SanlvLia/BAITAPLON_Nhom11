@@ -1,28 +1,27 @@
 package controllers.Server;
 
 import Database.*;
-import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.gson.Gson;
-import controllers.AuctionService;
-import controllers.UserSession;
-import models.Extra.messages.*;
-import models.accounts.User;
-import models.bidding.BidTransaction;
-import models.core.Item;
+import Service.AuctionService;
+import models.Extra.messages.Common.*;
+import models.Extra.messages.MsgAuction.AdminActionCommand;
+import models.Extra.messages.MsgAuction.AuctionCommandMessage;
+import models.Extra.messages.MsgAuction.AuctionStatusMessage;
+import models.Extra.messages.MsgBid.ClientSendBid;
+import models.Extra.messages.MsgData.InventoryDataResponse;
+import models.Extra.messages.MsgData.RequestListDataResponse;
+import models.items.ItemFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-
-import models.items.ItemType;
-import models.items.itemFactory;
 
 
 public class ClientHandler implements Runnable {
@@ -182,7 +181,7 @@ public class ClientHandler implements Runnable {
                             Createitempayload payload = gson.fromJson(request.requestInfo(), Createitempayload.class);
                             models.items.ItemType itemType = models.items.ItemType.valueOf(payload.getItemType());
 
-                            models.core.Item item = models.items.itemFactory.createItem(
+                            models.core.Item item = ItemFactory.createItem(
                                     itemType,
                                     payload.getItem_name(),
                                     payload.getBasePrice(),
@@ -322,7 +321,7 @@ public class ClientHandler implements Runnable {
                     String userId = node.get("Id_user").asText();
                     String payloadJson = node.get("payloadJson").asText();
 
-                    loginpayload payload = mapper.readValue(payloadJson, loginpayload.class);
+                    LoginPayload payload = mapper.readValue(payloadJson, LoginPayload.class);
 
                     this.userId = userId;
                     this.role = payload.getRole();
@@ -340,7 +339,8 @@ public class ClientHandler implements Runnable {
                     RequestLog requestlog = new RequestLog();
                     Inventory inventoryDB = new  Inventory();
 
-                    if( status_item.equals(MyRequest.STATUS_IN_PROGRESS) || status_item.equals(MyRequest.STATUS_SCHEDULED)){
+                    if (MyRequest.STATUS_IN_PROGRESS.equals(status_item)
+                            || MyRequest.STATUS_SCHEDULED.equals(status_item)) {
                         ObjectNode response =  mapper.createObjectNode();
                         response.put("type", "remove_item_fail");
                         send (response.toString());// gửi thông baos lỗi cho usercontroller

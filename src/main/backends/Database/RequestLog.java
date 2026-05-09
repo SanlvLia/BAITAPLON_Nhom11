@@ -1,8 +1,7 @@
 package Database;
 
 import models.Extra.IdGenerator;
-import models.Extra.messages.Message;
-import org.sqlite.jdbc4.JDBC4Connection;
+import models.Extra.messages.Common.Message;
 
 import java.io.IOException;
 import java.nio.file.Files;
