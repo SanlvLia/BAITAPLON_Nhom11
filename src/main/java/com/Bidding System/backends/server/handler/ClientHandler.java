@@ -1,6 +1,15 @@
 package backends.server.handler;
 
-import backends.server.database.*;
+import backends.common.models.accounts.User;
+import backends.common.models.bidding.Auction;
+import backends.common.models.core.Account;
+import backends.common.models.core.Item;
+import backends.common.models.items.ItemFactory;
+import backends.common.models.items.ItemType;
+import backends.server.database.Inventory;
+import backends.server.database.MyRequest;
+import backends.server.database.RequestLog;
+import backends.server.database.UserStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -15,20 +24,20 @@ import backends.common.messages.MsgAuction.AuctionStatusMessage;
 import backends.common.messages.MsgBid.ClientSendBid;
 import backends.common.messages.MsgData.InventoryDataResponse;
 import backends.common.messages.MsgData.RequestListDataResponse;
-import backends.common.models.items.ItemFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.Optional;
 
 
 public class ClientHandler implements Runnable {
 
     private final Socket socket;
     private PrintWriter out;                        // field — dùng lâu dài
-    private static final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);;;
+    private static final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     private String watchingAuctionId = null;        // client đang xem phiên nào
 
     public Gson gson = new Gson();
@@ -98,15 +107,65 @@ public class ClientHandler implements Runnable {
                     double currentBalance = userStore.get_balance(msg.Id_user);
                     send(okJson(currentBalance));
                 }
+                case "signin" -> {
+                    SigninPayload payload = mapper.readValue(node.get("payloadJson").asText(), SigninPayload.class);
+                    UserStore userStore = new UserStore();
+                    Optional<Account> accountOptional =
+                            userStore.authenticate(payload.getPhoneNumber(), payload.getPassword());
+
+                    if (accountOptional.isEmpty()) {
+                        ObjectNode fail = mapper.createObjectNode();
+                        fail.put("type", "SIGNIN_FAIL");
+                        send(fail.toString());
+                        return;
+                    }
+
+                    Account account = accountOptional.get();
+                    this.userId = account.getId();
+                    this.role = account.getRole();
+                    AuctionRoom.getInstance().connectors.put(userId, this);// lưu thông tin clienthandler khi sign in thành công
+
+                    double balance = account instanceof User user ? user.getBalance() : 0.0;
+
+                    SigninResponsePayload responsePayload = new SigninResponsePayload(
+                            account.getId(),
+                            account.getName(),
+                            account.getEmail(),
+                            account.getPhoneNumber(),
+                            account.getPassword(),
+                            account.getRole(),
+                            balance
+                    );
+
+                    ObjectNode ok = mapper.createObjectNode();
+                    ok.put("type", "SIGNIN_OK");
+                    ok.put("payloadJson", gson.toJson(responsePayload));
+                    send(ok.toString());
+                }
+                case "signup" ->{
+                    SignupPayload payload = mapper.readValue(node.get("payloadJson").asText(), SignupPayload.class);
+                    UserStore userStore = new UserStore();
+                    if (userStore.phoneNumberExists(payload.getPhoneNumber())) {
+                        ObjectNode fail = mapper.createObjectNode();
+                        fail.put("type", "SIGNUP_FAIL");
+                        send(fail.toString());
+                        return;
+                    }
+                    userStore.saveUser(new User(payload.getName(),  payload.getEmail(), payload.getPhoneNumber(), payload.getPassword()));
+
+                    ObjectNode success = mapper.createObjectNode();
+                    success.put("type", "SIGNUP_OK");
+                    send(success.toString());// gửi lại tín hiệu sign up thành công
+                }
 
                 // ADMIN XIN DỮ LIỆU INVENTORY
                 case "FETCH_INVENTORY" -> {
-                    backends.server.database.Inventory inventoryDB = new backends.server.database.Inventory();
+                    Inventory inventoryDB = new Inventory();
                     InventoryDataResponse response = new InventoryDataResponse();
 
-                    response.waitingItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_WAITING);
-                    response.scheduledItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_SCHEDULED);
-                    response.inProgressItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_IN_PROGRESS);
+                    response.waitingItems = inventoryDB.getItemsByStatus(Inventory.STATUS_WAITING);
+                    response.scheduledItems = inventoryDB.getItemsByStatus(Inventory.STATUS_SCHEDULED);
+                    response.inProgressItems = inventoryDB.getItemsByStatus(Inventory.STATUS_IN_PROGRESS);
 
                     send(mapper.writeValueAsString(response));
                 }
@@ -120,18 +179,18 @@ public class ClientHandler implements Runnable {
                     statusMsg.itemId = itemId;
 
                     // Lấy auctionId an toàn — không crash nếu null
-                    backends.common.models.bidding.Auction managedAuction = AuctionService.getManagedActiveAuction(itemId);
+                    Auction managedAuction = AuctionService.getManagedActiveAuction(itemId);
                     statusMsg.auctionId = (managedAuction != null) ? managedAuction.getAuctionId() : "";
 
                     if (!remaining.isZero() && !remaining.isNegative()) {
                         statusMsg.status = "STARTED";
                         statusMsg.itemId = itemId;
-                        statusMsg.auctionId = (managedAuction != null) ? managedAuction.getAuctionId() : "";
+                        statusMsg.auctionId = AuctionService.getManagedActiveAuction(itemId).getAuctionId(); // hoặc lấy auctionId thật nếu cần
                         statusMsg.endTimeEpoch = System.currentTimeMillis() + remaining.toMillis();
                     } else {
                         statusMsg.status = "ENDED";
                         statusMsg.itemId = itemId;
-                        statusMsg.auctionId = (managedAuction != null) ? managedAuction.getAuctionId() : "";
+                        statusMsg.auctionId = AuctionService.getManagedActiveAuction(itemId).getAuctionId();
                         statusMsg.endTimeEpoch = 0;
                     }
                     send(mapper.writeValueAsString(statusMsg));
@@ -139,7 +198,7 @@ public class ClientHandler implements Runnable {
 
                 // ADMIN XIN DỮ LIỆU REQUEST
                 case "FETCH_REQUESTS" -> {
-                    backends.server.database.RequestLog requestLogDB = new backends.server.database.RequestLog();
+                    RequestLog requestLogDB = new RequestLog();
                     RequestListDataResponse response = new RequestListDataResponse();
 
                     response.requests = requestLogDB.getRequestsByType("additem");
@@ -150,25 +209,25 @@ public class ClientHandler implements Runnable {
                 // ADMIN RA LỆNH THAO TÁC DATABASE
                 case "ADMIN_ACTION" -> {
                     AdminActionCommand cmd = mapper.readValue(json, AdminActionCommand.class);
-                    backends.server.database.Inventory inventoryDB = new backends.server.database.Inventory();
-                    backends.server.database.RequestLog requestLogDB = new backends.server.database.RequestLog();
+                    Inventory inventoryDB = new Inventory();
+                    RequestLog requestLogDB = new RequestLog();
 
                     if ("SCHEDULE_ITEM".equals(cmd.action)) {
-                        inventoryDB.updateItemStatus(cmd.targetId, backends.server.database.Inventory.STATUS_SCHEDULED);
+                        inventoryDB.updateItemStatus(cmd.targetId, Inventory.STATUS_SCHEDULED);
 
                         // Báo lại cho Admin là đã xong để Admin load lại list
                         ObjectNode ack = mapper.createObjectNode();
                         ack.put("type", "ACTION_SUCCESS");
                         send(ack.toString());
                         InventoryDataResponse inventoryResponse = new InventoryDataResponse();
-                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_WAITING);
-                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_SCHEDULED);
-                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_IN_PROGRESS);
+                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(Inventory.STATUS_WAITING);
+                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(Inventory.STATUS_SCHEDULED);
+                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(Inventory.STATUS_IN_PROGRESS);
 
                         AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(inventoryResponse));
                     }
                     else if ("REJECT_REQUEST".equals(cmd.action)) {
-                        requestLogDB.updateRequestStatus(cmd.targetId, backends.server.database.RequestLog.STATUS_REJECTED);
+                        requestLogDB.updateRequestStatus(cmd.targetId, RequestLog.STATUS_REJECTED);
 
                         ObjectNode ack = mapper.createObjectNode();
                         ack.put("type", "ACTION_SUCCESS");
@@ -176,12 +235,12 @@ public class ClientHandler implements Runnable {
                     }
                     else if ("ACCEPT_REQUEST".equals(cmd.action)) {
                         // Tìm request trong DB
-                        backends.server.database.RequestLog.RequestRecord request = requestLogDB.findByRequestId(cmd.targetId);
+                        RequestLog.RequestRecord request = requestLogDB.findByRequestId(cmd.targetId);
                         if (request != null) {
                             Createitempayload payload = gson.fromJson(request.requestInfo(), Createitempayload.class);
-                            backends.common.models.items.ItemType itemType = backends.common.models.items.ItemType.valueOf(payload.getItemType());
+                            ItemType itemType = ItemType.valueOf(payload.getItemType());
 
-                            backends.common.models.core.Item item = ItemFactory.createItem(
+                            Item item = ItemFactory.createItem(
                                     itemType,
                                     payload.getItem_name(),
                                     payload.getBasePrice(),
@@ -306,7 +365,7 @@ public class ClientHandler implements Runnable {
                     AuctionRoom.sendadmin(responseNode.toString());
                 }
                 case "change_info" -> {
-                    String userId = node.get("Id_user").asText();
+//                    String userId = node.get("Id_user").asText();
                     String payloadJson = node.get("payloadJson").asText();
 
                     Change_infopayload payload = mapper.readValue(payloadJson,Change_infopayload.class);
@@ -317,24 +376,12 @@ public class ClientHandler implements Runnable {
 
                     send(responseNode.toString());
                 }
-                case "login" -> {// xử lý định danh cho từng clienthandler
-                    String userId = node.get("Id_user").asText();
-                    String payloadJson = node.get("payloadJson").asText();
-
-                    LoginPayload payload = mapper.readValue(payloadJson, LoginPayload.class);
-
-                    this.userId = userId;
-                    this.role = payload.getRole();
-
-                    AuctionRoom.getInstance().connectors.put(userId, this);
-                    System.out.println("User " + userId + " với role " + payload.getRole() + " đã kết nối thành công!");
-                }
                 case "removeitem" -> {
-                    String userId = node.get("Id_user").asText();
+//                    String userId = node.get("Id_user").asText();
                     String payloadJson = node.get("payloadJson").asText();
 
                     RemoveRequestpayload payload = mapper.readValue(payloadJson, RemoveRequestpayload.class);
-                    String request_id = payload.getRequest_id();
+//                    String request_id = payload.getRequest_id();
                     String status_item = payload.getStatus();
                     RequestLog requestlog = new RequestLog();
                     Inventory inventoryDB = new  Inventory();
@@ -358,9 +405,9 @@ public class ClientHandler implements Runnable {
                         send(response.toString());
 
                         InventoryDataResponse inventoryResponse = new InventoryDataResponse();
-                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_WAITING);
-                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_SCHEDULED);
-                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_IN_PROGRESS);
+                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(Inventory.STATUS_WAITING);
+                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(Inventory.STATUS_SCHEDULED);
+                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(Inventory.STATUS_IN_PROGRESS);
                         AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(inventoryResponse));
 
                         RequestListDataResponse requestResponse = new RequestListDataResponse();
