@@ -65,10 +65,10 @@
     </dependencies>
 
     <build>
-        <sourceDirectory>src/main/backends</sourceDirectory>
+        <sourceDirectory>src/main/java/com/Bidding System</sourceDirectory>
         <resources>
             <resource>
-                <directory>src/main/frontends</directory>
+                <directory>src/main/java/com/Bidding System/resources</directory>
             </resource>
         </resources>
         <plugins>
@@ -90,7 +90,7 @@
                         <!-- Default configuration for running with: mvn clean javafx:run -->
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>controllers.Launcher</mainClass>
+                            <mainClass>Launcher.Launcher</mainClass>
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>
                             <jlinkImageName>app</jlinkImageName>
