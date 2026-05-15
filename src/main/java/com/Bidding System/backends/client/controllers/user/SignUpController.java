@@ -4,7 +4,6 @@ import backends.client.network.MessageBus;
 import backends.client.session.UserSession;
 import backends.common.messages.Common.Message;
 import backends.common.messages.Common.SignupPayload;
-import backends.server.database.UserStore;
 import backends.client.controllers.ViewLoader;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
