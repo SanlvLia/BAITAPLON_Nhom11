@@ -1,11 +1,10 @@
 package backends.common.models.accounts;
 
-import Service.AuctionService;
-import models.bidding.Auction;
-import models.bidding.CanBidding;
-import models.core.Account;
-import models.core.Item;
-import models.selling.CanSelling;
+import backends.common.models.bidding.Auction;
+import backends.common.models.bidding.CanBidding;
+import backends.common.models.core.Account;
+import backends.common.models.core.Item;
+import backends.common.selling.CanSelling;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -66,6 +65,6 @@ public class User extends Account implements CanBidding, CanSelling {
         }
     }
     public void bids(Auction auction,double amount) throws IOException {
-        AuctionService.placeBid(this,auction,amount);
+        //AuctionService.placeBid(this,auction,amount);
     }
 }

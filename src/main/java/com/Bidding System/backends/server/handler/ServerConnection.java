@@ -1,9 +1,9 @@
-package controllers.Server;
+package backends.server.handler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import controllers.MessageBus;
+import backends.client.network.MessageBus;
 import javafx.application.Platform;
 
 import java.io.*;

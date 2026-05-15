@@ -1,8 +1,8 @@
-package models.core;
+package backends.common.models.core;
 
-import models.Extra.IdGenerator;
-import models.accounts.User;
-import models.items.ItemType;
+import backends.common.Extra.IdGenerator;
+import backends.common.models.accounts.User;
+import backends.common.models.items.ItemType;
 
 public abstract class Item extends Entity {
     protected String name;

@@ -1,9 +1,9 @@
-package DAO;
+package backends.server.DAO;
 
-import models.core.Item;
-import models.items.Art;
-import models.items.Electronics;
-import models.items.Vehicle;
+import backends.common.models.core.Item;
+import backends.common.models.items.Art;
+import backends.common.models.items.Electronics;
+import backends.common.models.items.Vehicle;
 
 import java.io.IOException;
 import java.nio.file.Files;

@@ -1,6 +1,8 @@
 package backends.server.database;
 
-import models.core.Account;
+import backends.common.models.accounts.Admin;
+import backends.common.models.accounts.User;
+import backends.common.models.core.Account;
 
 import java.io.IOException;
 import java.nio.file.Files;

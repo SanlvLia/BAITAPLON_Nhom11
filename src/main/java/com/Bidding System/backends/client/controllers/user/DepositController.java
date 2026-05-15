@@ -1,18 +1,18 @@
-package controllers.frontendcontrollers;
+package backends.client.controllers.user;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.gson.Gson;
-import controllers.MessageBus;
-import controllers.UserSession;
+import backends.client.network.MessageBus;
+import backends.client.session.UserSession;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.stage.Stage;
-import models.Extra.messages.Common.Depositpayload;
-import models.Extra.messages.Common.Message;
+import backends.common.messages.Common.Depositpayload;
+import backends.common.messages.Common.Message;
 import java.util.function.Consumer;
 
 public class DepositController {

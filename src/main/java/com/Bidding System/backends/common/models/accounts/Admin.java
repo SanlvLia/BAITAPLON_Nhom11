@@ -1,8 +1,8 @@
 package backends.common.models.accounts;
 
-import Service.AdminService;
-import models.bidding.Auction;
-import models.core.Account;
+import backends.server.service.AdminService;
+import backends.common.models.bidding.Auction;
+import backends.common.models.core.Account;
 
 import java.io.IOException;
 import java.util.HashMap;

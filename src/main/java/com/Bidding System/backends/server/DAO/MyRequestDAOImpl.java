@@ -1,7 +1,7 @@
-package DAO;
+package backends.server.DAO;
 
-import Database.MyRequest;
-import models.Extra.messages.Common.Message;
+import backends.server.database.MyRequest;
+import backends.common.messages.Common.Message;
 
 import java.io.IOException;
 import java.nio.file.Files;

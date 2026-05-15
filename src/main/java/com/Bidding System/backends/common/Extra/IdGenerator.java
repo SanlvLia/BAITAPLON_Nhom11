@@ -1,6 +1,6 @@
-package models.Extra;
+package backends.common.Extra;
 
-import models.items.ItemType;
+import backends.common.models.items.ItemType;
 
 public class IdGenerator {
     private static long lastGeneratedId = System.currentTimeMillis();

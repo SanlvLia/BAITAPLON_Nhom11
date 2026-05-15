@@ -1,6 +1,6 @@
-package models.selling;
+package backends.common.selling;
 
-import models.core.Item;
+import backends.common.models.core.Item;
 
 public interface CanSelling {
     public void sellItem(Item item);

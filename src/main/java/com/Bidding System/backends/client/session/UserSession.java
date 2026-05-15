@@ -1,8 +1,8 @@
-package controllers;
+package backends.client.session;
 
-import controllers.Server.ServerConnection;
-import models.core.Account;
-import models.accounts.User;
+import backends.server.handler.ServerConnection;
+import backends.common.models.core.Account;
+import backends.common.models.accounts.User;
 
 public final class UserSession {
     private static Account currentAccount;

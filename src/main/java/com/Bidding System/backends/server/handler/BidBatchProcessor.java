@@ -1,15 +1,15 @@
-package controllers.Server;
+package backends.server.handler;
 
-import Database.BidTransactions;
-import Database.UserStore;
+import backends.server.database.BidTransactions;
+import backends.server.database.UserStore;
 import com.google.gson.Gson;
-import models.Extra.messages.MsgBid.ReceiveMaxBidder;
-import models.Extra.messages.MsgBid.ServerBidRespond;
-import models.bidding.BidTransaction;
-import models.core.Item;
-import models.items.ItemType;
-import models.items.ItemFactory;
-import models.accounts.User;
+import backends.common.messages.MsgBid.ReceiveMaxBidder;
+import backends.common.messages.MsgBid.ServerBidRespond;
+import backends.common.models.bidding.BidTransaction;
+import backends.common.models.core.Item;
+import backends.common.models.items.ItemType;
+import backends.common.models.items.ItemFactory;
+import backends.common.models.accounts.User;
 
 import java.util.*;
 import java.util.concurrent.*;

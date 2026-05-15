@@ -1,6 +1,6 @@
 package backends.common.messages.MsgAuction;
 
-import Database.RequestLog;
+import backends.server.database.RequestLog;
 
 import java.io.IOException;
 

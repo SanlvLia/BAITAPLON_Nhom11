@@ -1,4 +1,4 @@
-package controllers;
+package backends.client.network;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;

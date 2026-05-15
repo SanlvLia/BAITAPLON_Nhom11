@@ -1,6 +1,6 @@
-package Database;
+package backends.server.database;
 
-import models.Extra.messages.Common.Message;
+import backends.common.messages.Common.Message;
 
 import java.io.IOException;
 import java.nio.file.Files;

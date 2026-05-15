@@ -1,9 +1,9 @@
-package Service;
+package backends.server.service;
 
 import com.google.gson.Gson;
-import models.accounts.Admin;
-import models.bidding.Auction;
-import models.core.Item;
+import backends.common.models.accounts.Admin;
+import backends.common.models.bidding.Auction;
+import backends.common.models.core.Item;
 
 import java.io.IOException;
 

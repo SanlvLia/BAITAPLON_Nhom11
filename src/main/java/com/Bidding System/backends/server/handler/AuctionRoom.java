@@ -1,7 +1,7 @@
-package controllers.Server;
+package backends.server.handler;
 
-import controllers.UserSession;
-import models.core.Account;
+import backends.client.session.UserSession;
+import backends.common.models.core.Account;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -76,7 +76,10 @@ public class AuctionRoom {
         }
     }
     public static void SendToOneuser(String userId,String json) {
-        AuctionRoom.getInstance().connectors.get(userId).send(json);
+        ClientHandler handler = AuctionRoom.getInstance().connectors.get(userId);
+        if (handler != null) {
+            handler.send(json);
+        }
     }
 
 

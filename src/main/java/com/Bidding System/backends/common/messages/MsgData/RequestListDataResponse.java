@@ -1,5 +1,5 @@
 package backends.common.messages.MsgData;
-import Database.RequestLog;
+import backends.server.database.RequestLog;
 import java.util.List;
 
 public class RequestListDataResponse {

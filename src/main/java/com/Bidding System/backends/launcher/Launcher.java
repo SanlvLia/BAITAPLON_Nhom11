@@ -1,7 +1,7 @@
-package Launcher;
+package backends.launcher;
 
-import Application.AdminApplication;
-import Application.ClientApplication;
+import backends.client.AdminApplication;
+import backends.client.ClientApplication;
 import backends.server.ServerApplication;
 import javafx.application.Application;
 
@@ -9,51 +9,67 @@ import java.util.Scanner;
 
 public class Launcher {
     public static String serverIp = "localhost";
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
-        System.out.print("👉 Nhập địa chỉ IP Server (Nhấn Enter để dùng localhost): ");
-        String input = sc.nextLine();
 
-        if (!input.trim().isEmpty()) {
-            serverIp = input;
+    public static void main(String[] args) {
+        String input = "";
+        try (Scanner sc = new Scanner(System.in)) {
+            System.out.print("Nhap dia chi IP Server (nhan Enter de dung localhost): ");
+            if (sc.hasNextLine()) {
+                input = sc.nextLine().trim();
+            }
+        } catch (Exception e) {
+            input = "";
         }
-        if (serverIp.equals("localhost")) {
+
+        if (isValidHost(input)) {
+            serverIp = input;
+        } else {
+            serverIp = "localhost";
+        }
+
+        if ("localhost".equals(serverIp)) {
             ServerStart();
             ClientStart(args);
-        }
-        else {
+        } else {
             ClientStart(args);
         }
     }
 
     public static void ServerStart() {
         Thread serverThread = new Thread(() -> {
-            System.out.println("[Launcher] Đang khởi động Server...");
+            System.out.println("[Launcher] Dang khoi dong Server...");
             ServerApplication.start();
         });
         serverThread.start();
 
         try {
-            System.out.println("[Launcher] Đợi Server sẵn sàng...");
-            Thread.sleep(2000); // Đợi 2 giây
+            System.out.println("[Launcher] Doi Server san sang...");
+            Thread.sleep(2000);
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            Thread.currentThread().interrupt();
         }
     }
+
     public static void ClientStart(String[] args) {
         Thread clientThread = new Thread(() -> {
-            System.out.println("[Launcher] Đang khởi động Client...");
-            // Gọi phương thức main của ClientLauncher
+            System.out.println("[Launcher] Dang khoi dong Client...");
             Application.launch(ClientApplication.class, args);
         });
         clientThread.start();
     }
+
     public static void AdminStart(String[] args) {
         Thread clientThread = new Thread(() -> {
-            System.out.println("[Launcher] Đang khởi động Client...");
-            // Gọi phương thức main của ClientLauncher
+            System.out.println("[Launcher] Dang khoi dong Client...");
             Application.launch(AdminApplication.class, args);
         });
         clientThread.start();
+    }
+
+    private static boolean isValidHost(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        return value.matches("[a-zA-Z0-9._-]+");
     }
 }

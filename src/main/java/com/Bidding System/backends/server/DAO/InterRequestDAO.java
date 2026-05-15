@@ -1,6 +1,6 @@
-package DAO;
+package backends.server.DAO;
 
-import models.core.Item;
+import backends.common.models.core.Item;
 
 import java.io.IOException;
 import java.util.List;

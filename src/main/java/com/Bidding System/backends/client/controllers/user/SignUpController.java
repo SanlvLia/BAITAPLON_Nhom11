@@ -1,7 +1,7 @@
-package controllers.frontendcontrollers;
+package backends.client.controllers.user;
 
-import Database.UserStore;
-import controllers.ViewLoader;
+import backends.server.database.UserStore;
+import backends.client.controllers.ViewLoader;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
@@ -12,7 +12,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
-import models.accounts.User;
+import backends.common.models.accounts.User;
 
 import java.io.IOException;
 

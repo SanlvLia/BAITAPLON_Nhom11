@@ -1,7 +1,7 @@
 package backends.server;
 
-import Service.AuctionService;
-import controllers.Server.ClientHandler;
+import backends.server.service.AuctionService;
+import backends.server.handler.ClientHandler;
 
 import java.net.ServerSocket;
 import java.net.Socket;

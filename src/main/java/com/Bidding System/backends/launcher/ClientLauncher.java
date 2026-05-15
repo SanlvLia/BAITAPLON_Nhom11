@@ -1,7 +1,7 @@
-package Launcher;
+package backends.launcher;
 
-import Application.AdminApplication;
-import Application.ClientApplication;
+import backends.client.AdminApplication;
+import backends.client.ClientApplication;
 import backends.server.ServerApplication;
 import javafx.application.Application;
 

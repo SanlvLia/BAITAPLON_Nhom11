@@ -1,14 +1,14 @@
-package Service;
+package backends.server.service;
 
-import Database.Auctions;
-import Database.BidTransactions;
-import Database.Inventory;
-import controllers.Server.ServerAuctionManager;
-import models.accounts.Admin;
-import models.accounts.User;
-import models.bidding.Auction;
-import models.bidding.BidTransaction;
-import models.core.Item;
+import backends.server.database.Auctions;
+import backends.server.database.BidTransactions;
+import backends.server.database.Inventory;
+import backends.server.handler.ServerAuctionManager;
+import backends.common.models.accounts.Admin;
+import backends.common.models.accounts.User;
+import backends.common.models.bidding.Auction;
+import backends.common.models.bidding.BidTransaction;
+import backends.common.models.core.Item;
 
 import java.io.IOException;
 import java.time.Duration;

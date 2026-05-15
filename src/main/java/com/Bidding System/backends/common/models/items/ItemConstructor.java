@@ -1,6 +1,6 @@
-package models.items;
+package backends.common.models.items;
 
-import models.core.Item;
+import backends.common.models.core.Item;
 
 public interface ItemConstructor {
     Item create(String id, String name, double price, String info);

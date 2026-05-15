@@ -1,8 +1,8 @@
-package models.items;
+package backends.common.models.items;
 
-import models.Extra.IdGenerator;
-import models.core.Entity;
-import models.core.Item;
+import backends.common.Extra.IdGenerator;
+import backends.common.models.core.Entity;
+import backends.common.models.core.Item;
 
 public enum ItemType {
     Electronics("ELE", Electronics::new),

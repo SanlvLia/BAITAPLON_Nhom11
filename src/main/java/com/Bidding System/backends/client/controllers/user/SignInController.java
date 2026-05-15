@@ -1,9 +1,9 @@
-package controllers.frontendcontrollers;
+package backends.client.controllers.user;
 
-import Database.UserStore;
+import backends.server.database.UserStore;
 import com.google.gson.Gson;
-import controllers.UserSession;
-import controllers.ViewLoader;
+import backends.client.session.UserSession;
+import backends.client.controllers.ViewLoader;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -15,9 +15,9 @@ import javafx.scene.control.Button;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
-import models.Extra.messages.Common.Message;
-import models.Extra.messages.Common.LoginPayload;
-import models.core.Account;
+import backends.common.messages.Common.Message;
+import backends.common.messages.Common.LoginPayload;
+import backends.common.models.core.Account;
 
 import java.io.IOException;
 import java.util.Optional;

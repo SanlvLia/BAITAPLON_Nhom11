@@ -1,6 +1,7 @@
 package backends.server.database;
 
-import models.core.Item;
+import backends.common.models.bidding.Auction;
+import backends.common.models.core.Item;
 
 import java.io.IOException;
 import java.nio.file.Files;

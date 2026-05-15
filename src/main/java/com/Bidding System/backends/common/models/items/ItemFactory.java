@@ -1,6 +1,6 @@
-package models.items;
+package backends.common.models.items;
 
-import models.core.Item;
+import backends.common.models.core.Item;
 
 // Dựa vào tham số type được nhập vào mà hàm createItem (Factory pattern) sẽ return object kiểu sản phẩm tương ứng
 public class ItemFactory {

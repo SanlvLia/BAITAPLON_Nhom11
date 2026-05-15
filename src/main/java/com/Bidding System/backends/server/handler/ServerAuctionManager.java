@@ -1,17 +1,17 @@
-package controllers.Server;
+package backends.server.handler;
 
-import Database.BidTransactions;
-import Database.Inventory;
-import Database.UserStore;
-import Service.AuctionService;
-import models.Extra.messages.MsgAuction.AuctionResultMessage;
-import models.Extra.messages.MsgBid.ServerBidRespond;
-import models.Extra.messages.MsgAuction.StartAuctionMessage;
-import models.accounts.Admin;
-import models.accounts.User;
-import models.bidding.Auction;
-import models.core.Item;
-import models.Extra.messages.MsgAuction.AuctionStatusMessage;
+import backends.server.database.BidTransactions;
+import backends.server.database.Inventory;
+import backends.server.database.UserStore;
+import backends.server.service.AuctionService;
+import backends.common.messages.MsgAuction.AuctionResultMessage;
+import backends.common.messages.MsgBid.ServerBidRespond;
+import backends.common.messages.MsgAuction.StartAuctionMessage;
+import backends.common.models.accounts.Admin;
+import backends.common.models.accounts.User;
+import backends.common.models.bidding.Auction;
+import backends.common.models.core.Item;
+import backends.common.messages.MsgAuction.AuctionStatusMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -106,7 +106,16 @@ public class ServerAuctionManager {
     // Hàm phụ để đẩy tin nhắn kết thúc (Dùng chung cho cả tự động và thủ công)
     public void broadcastEnd(String itemId, Auction auction) {
         try {
-            String auctionId = (auction != null) ? auction.getAuctionId() : null;
+            if (auction == null) {
+                AuctionStatusMessage statusMsg = new AuctionStatusMessage();
+                statusMsg.status = "ENDED";
+                statusMsg.itemId = itemId;
+                statusMsg.endTimeEpoch = 0;
+                AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(statusMsg));
+                return;
+            }
+
+            String auctionId = auction.getAuctionId();
 
             if (auctionId != null) {
                 BidBatchProcessor.getInstance().flushAuction(auctionId);

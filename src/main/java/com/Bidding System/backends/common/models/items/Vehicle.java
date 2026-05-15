@@ -1,6 +1,6 @@
-package models.items;
+package backends.common.models.items;
 
-import models.core.Item;
+import backends.common.models.core.Item;
 
 public class Vehicle extends Item {
     public Vehicle(String id, String name, double prices, String info) {

@@ -1,4 +1,4 @@
-package models.core;
+package backends.common.models.core;
 
 public class Account extends Entity {
     protected String name,phoneNumber,Email,password,role;

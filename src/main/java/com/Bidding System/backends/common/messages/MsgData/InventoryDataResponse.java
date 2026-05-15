@@ -1,5 +1,5 @@
 package backends.common.messages.MsgData;
-import models.core.Item;
+import backends.common.models.core.Item;
 import java.util.List;
 
 public class InventoryDataResponse {

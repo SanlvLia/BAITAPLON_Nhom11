@@ -1,7 +1,7 @@
-package Database;
+package backends.server.database;
 
-import models.Extra.IdGenerator;
-import models.Extra.messages.Common.Message;
+import backends.common.Extra.IdGenerator;
+import backends.common.messages.Common.Message;
 
 import java.io.IOException;
 import java.nio.file.Files;

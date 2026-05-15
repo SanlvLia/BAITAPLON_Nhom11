@@ -1,21 +1,21 @@
-package controllers.Server;
+package backends.server.handler;
 
-import Database.*;
+import backends.server.database.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.gson.Gson;
-import Service.AuctionService;
-import models.Extra.messages.Common.*;
-import models.Extra.messages.MsgAuction.AdminActionCommand;
-import models.Extra.messages.MsgAuction.AuctionCommandMessage;
-import models.Extra.messages.MsgAuction.AuctionStatusMessage;
-import models.Extra.messages.MsgBid.ClientSendBid;
-import models.Extra.messages.MsgData.InventoryDataResponse;
-import models.Extra.messages.MsgData.RequestListDataResponse;
-import models.items.ItemFactory;
+import backends.server.service.AuctionService;
+import backends.common.messages.Common.*;
+import backends.common.messages.MsgAuction.AdminActionCommand;
+import backends.common.messages.MsgAuction.AuctionCommandMessage;
+import backends.common.messages.MsgAuction.AuctionStatusMessage;
+import backends.common.messages.MsgBid.ClientSendBid;
+import backends.common.messages.MsgData.InventoryDataResponse;
+import backends.common.messages.MsgData.RequestListDataResponse;
+import backends.common.models.items.ItemFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -101,12 +101,12 @@ public class ClientHandler implements Runnable {
 
                 // ADMIN XIN DỮ LIỆU INVENTORY
                 case "FETCH_INVENTORY" -> {
-                    Database.Inventory inventoryDB = new Database.Inventory();
+                    backends.server.database.Inventory inventoryDB = new backends.server.database.Inventory();
                     InventoryDataResponse response = new InventoryDataResponse();
 
-                    response.waitingItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_WAITING);
-                    response.scheduledItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_SCHEDULED);
-                    response.inProgressItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_IN_PROGRESS);
+                    response.waitingItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_WAITING);
+                    response.scheduledItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_SCHEDULED);
+                    response.inProgressItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_IN_PROGRESS);
 
                     send(mapper.writeValueAsString(response));
                 }
@@ -120,18 +120,18 @@ public class ClientHandler implements Runnable {
                     statusMsg.itemId = itemId;
 
                     // Lấy auctionId an toàn — không crash nếu null
-                    models.bidding.Auction managedAuction = AuctionService.getManagedActiveAuction(itemId);
+                    backends.common.models.bidding.Auction managedAuction = AuctionService.getManagedActiveAuction(itemId);
                     statusMsg.auctionId = (managedAuction != null) ? managedAuction.getAuctionId() : "";
 
                     if (!remaining.isZero() && !remaining.isNegative()) {
                         statusMsg.status = "STARTED";
                         statusMsg.itemId = itemId;
-                        statusMsg.auctionId = AuctionService.getManagedActiveAuction(itemId).getAuctionId(); // hoặc lấy auctionId thật nếu cần
+                        statusMsg.auctionId = (managedAuction != null) ? managedAuction.getAuctionId() : "";
                         statusMsg.endTimeEpoch = System.currentTimeMillis() + remaining.toMillis();
                     } else {
                         statusMsg.status = "ENDED";
                         statusMsg.itemId = itemId;
-                        statusMsg.auctionId = AuctionService.getManagedActiveAuction(itemId).getAuctionId();
+                        statusMsg.auctionId = (managedAuction != null) ? managedAuction.getAuctionId() : "";
                         statusMsg.endTimeEpoch = 0;
                     }
                     send(mapper.writeValueAsString(statusMsg));
@@ -139,7 +139,7 @@ public class ClientHandler implements Runnable {
 
                 // ADMIN XIN DỮ LIỆU REQUEST
                 case "FETCH_REQUESTS" -> {
-                    Database.RequestLog requestLogDB = new Database.RequestLog();
+                    backends.server.database.RequestLog requestLogDB = new backends.server.database.RequestLog();
                     RequestListDataResponse response = new RequestListDataResponse();
 
                     response.requests = requestLogDB.getRequestsByType("additem");
@@ -150,38 +150,38 @@ public class ClientHandler implements Runnable {
                 // ADMIN RA LỆNH THAO TÁC DATABASE
                 case "ADMIN_ACTION" -> {
                     AdminActionCommand cmd = mapper.readValue(json, AdminActionCommand.class);
-                    Database.Inventory inventoryDB = new Database.Inventory();
-                    Database.RequestLog requestLogDB = new Database.RequestLog();
+                    backends.server.database.Inventory inventoryDB = new backends.server.database.Inventory();
+                    backends.server.database.RequestLog requestLogDB = new backends.server.database.RequestLog();
 
                     if ("SCHEDULE_ITEM".equals(cmd.action)) {
-                        inventoryDB.updateItemStatus(cmd.targetId, Database.Inventory.STATUS_SCHEDULED);
+                        inventoryDB.updateItemStatus(cmd.targetId, backends.server.database.Inventory.STATUS_SCHEDULED);
 
                         // Báo lại cho Admin là đã xong để Admin load lại list
                         ObjectNode ack = mapper.createObjectNode();
                         ack.put("type", "ACTION_SUCCESS");
                         send(ack.toString());
                         InventoryDataResponse inventoryResponse = new InventoryDataResponse();
-                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_WAITING);
-                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_SCHEDULED);
-                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_IN_PROGRESS);
+                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_WAITING);
+                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_SCHEDULED);
+                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_IN_PROGRESS);
 
                         AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(inventoryResponse));
                     }
                     else if ("REJECT_REQUEST".equals(cmd.action)) {
-                        requestLogDB.updateRequestStatus(cmd.targetId, Database.RequestLog.STATUS_REJECTED);
+                        requestLogDB.updateRequestStatus(cmd.targetId, backends.server.database.RequestLog.STATUS_REJECTED);
 
                         ObjectNode ack = mapper.createObjectNode();
                         ack.put("type", "ACTION_SUCCESS");
                         send(ack.toString());
                     }
-                    else if ("ACCEPT_REQUnEST".equals(cmd.action)) {
+                    else if ("ACCEPT_REQUEST".equals(cmd.action)) {
                         // Tìm request trong DB
-                        Database.RequestLog.RequestRecord request = requestLogDB.findByRequestId(cmd.targetId);
+                        backends.server.database.RequestLog.RequestRecord request = requestLogDB.findByRequestId(cmd.targetId);
                         if (request != null) {
                             Createitempayload payload = gson.fromJson(request.requestInfo(), Createitempayload.class);
-                            models.items.ItemType itemType = models.items.ItemType.valueOf(payload.getItemType());
+                            backends.common.models.items.ItemType itemType = backends.common.models.items.ItemType.valueOf(payload.getItemType());
 
-                            models.core.Item item = ItemFactory.createItem(
+                            backends.common.models.core.Item item = ItemFactory.createItem(
                                     itemType,
                                     payload.getItem_name(),
                                     payload.getBasePrice(),
@@ -358,9 +358,9 @@ public class ClientHandler implements Runnable {
                         send(response.toString());
 
                         InventoryDataResponse inventoryResponse = new InventoryDataResponse();
-                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_WAITING);
-                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_SCHEDULED);
-                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(Database.Inventory.STATUS_IN_PROGRESS);
+                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_WAITING);
+                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_SCHEDULED);
+                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(backends.server.database.Inventory.STATUS_IN_PROGRESS);
                         AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(inventoryResponse));
 
                         RequestListDataResponse requestResponse = new RequestListDataResponse();

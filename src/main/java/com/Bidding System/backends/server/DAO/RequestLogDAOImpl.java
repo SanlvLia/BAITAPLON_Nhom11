@@ -1,8 +1,8 @@
-package DAO;
+package backends.server.DAO;
 
-import Database.RequestLog;
-import models.Extra.IdGenerator;
-import models.Extra.messages.Common.Message;
+import backends.server.database.RequestLog;
+import backends.common.Extra.IdGenerator;
+import backends.common.messages.Common.Message;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -11,7 +11,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-import static Database.RequestLog.STATUS_PENDING;
+import static backends.server.database.RequestLog.STATUS_PENDING;
 
 public class RequestLogDAOImpl implements InterRequestDAO {
     // 1. Singleton Instance
