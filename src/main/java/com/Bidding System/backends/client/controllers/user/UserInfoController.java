@@ -21,6 +21,7 @@ import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Rectangle2D;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -29,6 +30,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import backends.common.messages.Common.Createitempayload;
 import backends.common.messages.Common.Message;
@@ -130,34 +132,49 @@ public class UserInfoController {
 
     @FXML
     public void initialize() throws Exception {
-        passshow.selectedProperty().addListener((observable, oldValue, newValue) -> refreshPasswordField());
+        if (passshow != null) {
+            passshow.selectedProperty().addListener((observable, oldValue, newValue) -> refreshPasswordField());
+        }
         if (UserSession.getCurrentUser() != null) {
             setUser(UserSession.getCurrentUser());
         }
-        loadCurrentAmount();
-        high_bidder.setEditable(false);
-        current_amount.setEditable(false);
-        itemName.setEditable(false);
-        baseprice.setEditable(false);
-        increment.setEditable(false);
-        UserSession.getConnection().send(new FetchDataRequest("FETCH_INVENTORY"));
-        loaduser_request();
-        remove_itemResult();
-        loadupcomingAuctions();
-        subscribeDepositResult();
-        subcribePlaceBid();
-        subscribeAdditemResult();
-        subscribechangeResult();
-        subscribeAuction();
-        subscribeAuctionStart();
-        subscribeActionAccepted();
-        subscribeAuctionList();
-        startUIUpdater();
-        System.out.println(UserSession.getCurrentUser().getId());
+
+        if (balance != null) {
+            loadCurrentAmount();
+            subscribeDepositResult();
+        }
+
+        if (ITEMLIST != null) {
+            high_bidder.setEditable(false);
+            current_amount.setEditable(false);
+            itemName.setEditable(false);
+            baseprice.setEditable(false);
+            increment.setEditable(false);
+            UserSession.getConnection().send(new FetchDataRequest("FETCH_INVENTORY"));
+            loadupcomingAuctions();
+            subcribePlaceBid();
+            subscribeAuction();
+            subscribeAuctionStart();
+            subscribeAuctionList();
+            startUIUpdater();
+        }
+
+        if (List_AcceptedItem != null) {
+            loaduser_request();
+            remove_itemResult();
+            subscribeAdditemResult();
+            subscribeActionAccepted();
+        }
+
+        if (UserSession.getCurrentUser() != null) {
+            System.out.println(UserSession.getCurrentUser().getId());
+        }
     }
 
     private void loadCurrentAmount() {
-        Platform.runLater(() -> balance.setText("0.0"));
+        if (balance != null) {
+            Platform.runLater(() -> balance.setText("0.0"));
+        }
         Message get = new Message();
         get.messageType = "GET_BALANCE";
         get.Id_user = UserSession.getCurrentUser().getId();
@@ -437,7 +454,9 @@ public class UserInfoController {
                         currentUser.setBalance(latestBalance);
                     }
 
-                    Platform.runLater(() -> balance.setText(String.valueOf(latestBalance)));
+                    if (balance != null) {
+                        Platform.runLater(() -> balance.setText(String.valueOf(latestBalance)));
+                    }
                     return;
                 }
 
@@ -456,7 +475,9 @@ public class UserInfoController {
                     double updatedBalance = depositedAmount;
                     currentBalance = updatedBalance;
                     currentUser.setBalance(updatedBalance);
-                    Platform.runLater(() -> balance.setText(String.valueOf(updatedBalance)));
+                    if (balance != null) {
+                        Platform.runLater(() -> balance.setText(String.valueOf(updatedBalance)));
+                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -514,11 +535,55 @@ public class UserInfoController {
         }
 
         currentBalance = user.getBalance();
-        infoname.setText(user.getName());
-        infoemail.setText(user.getEmail());
-        infophonenumber.setText(user.getPhoneNumber());
-        balance.setText(String.valueOf(user.getBalance()));
+        if (infoname != null) {
+            infoname.setText(user.getName());
+        }
+        if (infoemail != null) {
+            infoemail.setText(user.getEmail());
+        }
+        if (infophonenumber != null) {
+            infophonenumber.setText(user.getPhoneNumber());
+        }
+        if (balance != null) {
+            balance.setText(String.valueOf(user.getBalance()));
+        }
         refreshPasswordField();
+    }
+
+    @FXML
+    public void handle_home(ActionEvent event) throws IOException {
+        switchMainScene(event, "HomePage.fxml", "Home");
+    }
+
+    @FXML
+    public void openProfile(ActionEvent event) throws IOException {
+        switchMainScene(event, "UserInfo.fxml", "User Profile");
+    }
+
+    @FXML
+    public void openBiddingSpace(ActionEvent event) throws IOException {
+        switchMainScene(event, "BiddingSpace.fxml", "Bidding Space");
+    }
+
+    @FXML
+    public void openSellItem(ActionEvent event) throws IOException {
+        switchMainScene(event, "SellItem.fxml", "Sell Item");
+    }
+
+    @FXML
+    public void openHistory(ActionEvent event) throws IOException {
+        switchMainScene(event, "History.fxml", "Transaction History");
+    }
+
+    private void switchMainScene(ActionEvent event, String viewFileName, String title) throws IOException {
+        Parent root = ViewLoader.load(viewFileName);
+        Scene scene = new Scene(root);
+
+        Stage window = (Stage) ((Node) event.getSource()).getScene().getWindow();
+        window.setScene(scene);
+        window.setTitle(title);
+        fitToVisibleScreen(window);
+        window.show();
     }
 
     @FXML
@@ -528,14 +593,27 @@ public class UserInfoController {
         Scene scene = new Scene(root);
 
         Stage window = (Stage) ((Node) event.getSource()).getScene().getWindow();
+        window.setMaximized(false);
         window.setScene(scene);
         window.setTitle("Sign in");
+        window.sizeToScene();
         window.centerOnScreen();
         window.show();
     }
 
+    private void fitToVisibleScreen(Stage stage) {
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        stage.setMaximized(false);
+        stage.setMinWidth(1000);
+        stage.setMinHeight(620);
+        stage.setX(bounds.getMinX());
+        stage.setY(bounds.getMinY());
+        stage.setWidth(bounds.getWidth());
+        stage.setHeight(bounds.getHeight());
+    }
+
     private void refreshPasswordField() {
-        if (user == null) {
+        if (user == null || passshow == null || infopassword == null) {
             return;
         }
         if (!passshow.isSelected()) {
@@ -628,11 +706,17 @@ public class UserInfoController {
     }
 
     private void setClock0() {
+        if (lblTimer == null) {
+            return;
+        }
         lblTimer.setText("00:00:00");
         lblTimer.setTextFill(javafx.scene.paint.Color.RED);
     }
 
     private void updateClock(java.time.Duration remaining) {
+        if (lblTimer == null) {
+            return;
+        }
         long h = remaining.toHours();
         long m = remaining.toMinutesPart();
         long s = remaining.toSecondsPart();
@@ -644,10 +728,16 @@ public class UserInfoController {
         if (item == null) {
             return;
         }
-        itemName.setText(item.getName());
-        baseprice.setText(String.valueOf(item.getPrices()));
+        if (itemName != null) {
+            itemName.setText(item.getName());
+        }
+        if (baseprice != null) {
+            baseprice.setText(String.valueOf(item.getPrices()));
+        }
         startingPrice = item.getPrices();
-        increment.setText(String.valueOf(item.getBidIncrement()));
+        if (increment != null) {
+            increment.setText(String.valueOf(item.getBidIncrement()));
+        }
         currentBidIncrement = item.getBidIncrement();
     }
 
@@ -781,10 +871,17 @@ public class UserInfoController {
         alert.showAndWait();
     }
     public void loaduser_request() throws IOException {
+        if (List_AcceptedItem == null) {
+            return;
+        }
         List<MyRequest.RequestRecord> requests = myrequest.getMyRequestsByType("additem");
 
         AcceptedItem_info.clear();
         for (MyRequest.RequestRecord request : requests) {
+            User currentUser = UserSession.getCurrentUser();
+            if (currentUser != null && !currentUser.getId().equals(request.userId())) {
+                continue;
+            }
             if (request.requestId() != null) {
                 AcceptedItem_info.add(request.requestId());
             }

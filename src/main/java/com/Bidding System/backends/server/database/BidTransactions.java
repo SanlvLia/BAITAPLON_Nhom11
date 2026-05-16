@@ -106,6 +106,33 @@ public class BidTransactions {
         }
     }
 
+    public List<BidHistoryRecord> getBidHistoryByBidder(String bidderId) throws IOException {
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                     SELECT auctionId, bidderId, itemId, amount, bidTime
+                     FROM bid_transactions
+                     WHERE bidderId = ?
+                     ORDER BY bidTime DESC, id DESC
+                     """)) {
+            statement.setString(1, bidderId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<BidHistoryRecord> history = new ArrayList<>();
+                while (resultSet.next()) {
+                    history.add(new BidHistoryRecord(
+                            resultSet.getString("auctionId"),
+                            resultSet.getString("bidderId"),
+                            resultSet.getString("itemId"),
+                            resultSet.getDouble("amount"),
+                            Instant.parse(resultSet.getString("bidTime"))
+                    ));
+                }
+                return history;
+            }
+        } catch (SQLException e) {
+            throw new IOException("Khong the doc lich su bid cua user", e);
+        }
+    }
+
     private synchronized void initializeStorage() throws IOException, SQLException {
         ensureDataDirectoryExists();
         try (Connection connection = openConnection();

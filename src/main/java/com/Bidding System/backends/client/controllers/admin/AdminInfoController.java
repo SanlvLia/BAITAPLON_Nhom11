@@ -47,6 +47,21 @@ import java.util.function.Consumer;
 
 public class AdminInfoController {
     @FXML
+    private TabPane adminTabs;
+
+    @FXML
+    private Tab adminProfileTab;
+
+    @FXML
+    private Tab adminRequestsTab;
+
+    @FXML
+    private Tab adminInventoryTab;
+
+    @FXML
+    private Tab adminBiddingTab;
+
+    @FXML
     private TextField infoname;
 
     @FXML
@@ -149,6 +164,26 @@ public class AdminInfoController {
             }
         });
         startUIUpdater();
+    }
+
+    @FXML
+    public void showProfile(ActionEvent event) {
+        adminTabs.getSelectionModel().select(adminProfileTab);
+    }
+
+    @FXML
+    public void showRequests(ActionEvent event) {
+        adminTabs.getSelectionModel().select(adminRequestsTab);
+    }
+
+    @FXML
+    public void showInventory(ActionEvent event) {
+        adminTabs.getSelectionModel().select(adminInventoryTab);
+    }
+
+    @FXML
+    public void showBidding(ActionEvent event) {
+        adminTabs.getSelectionModel().select(adminBiddingTab);
     }
 
     private void subcribeAuctionController() {

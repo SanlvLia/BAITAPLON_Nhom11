@@ -14,6 +14,7 @@ import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -21,6 +22,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import backends.common.messages.Common.Message;
 import backends.common.messages.Common.LoginPayload;
@@ -106,8 +108,8 @@ public class SignInController {
                     viewFileName = "AdminInfo.fxml";
                     windowTitle = "Thong tin admin";
                 } else {
-                    viewFileName = "UserInfo.fxml";
-                    windowTitle = "Thong tin nguoi dung";
+                    viewFileName = "HomePage.fxml";
+                    windowTitle = "Home";
                 }
 
                 FXMLLoader loader = ViewLoader.loader(viewFileName);
@@ -117,7 +119,7 @@ public class SignInController {
                 Platform.runLater(() -> {
                     pendingStage.setScene(sceneMain);
                     pendingStage.setTitle(windowTitle);
-                    pendingStage.centerOnScreen();
+                    fitToVisibleScreen(pendingStage);
                     pendingStage.show();
                 });
 
@@ -178,6 +180,17 @@ public class SignInController {
         if (signinResultHandler != null) {
             MessageBus.getInstance().unsubscribe(signinResultHandler);
         }
+    }
+
+    private void fitToVisibleScreen(Stage stage) {
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        stage.setMaximized(false);
+        stage.setMinWidth(1000);
+        stage.setMinHeight(620);
+        stage.setX(bounds.getMinX());
+        stage.setY(bounds.getMinY());
+        stage.setWidth(bounds.getWidth());
+        stage.setHeight(bounds.getHeight());
     }
 
 }
