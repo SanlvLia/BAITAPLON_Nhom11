@@ -399,8 +399,7 @@ public class UserInfoController {
             switch (type) {
                 case "AUCTION_STATUS" -> {
                     try {
-                        AuctionStatusMessage statusMsg =
-                                mapper.readValue(json, AuctionStatusMessage.class);
+                        AuctionStatusMessage statusMsg = mapper.readValue(json, AuctionStatusMessage.class);
                         Platform.runLater(() -> {
                             if ("STARTED".equals(statusMsg.status)) {
                                 currentEndTimeEpochs.put(statusMsg.itemId, statusMsg.endTimeEpoch);
@@ -409,15 +408,11 @@ public class UserInfoController {
                                 currentEndTimeEpochs.remove(statusMsg.itemId);
                                 itemToAuctionId.remove(statusMsg.itemId);
                             }
-
                             // Phần còn lại chỉ chạy nếu đúng item đang chọn
                             if (selectedAuctionItem == null || !selectedAuctionItem.getId().equals(statusMsg.itemId)) {
-                                System.out.println("WRONG");
                                 return;
                             }
-
                             if ("STARTED".equals(statusMsg.status)) {
-                                System.out.println("UPDATED");
                                 currentAuctionId = statusMsg.auctionId;
                                 currentSellerId = statusMsg.sellerId;
                                 endAt = Instant.ofEpochMilli(statusMsg.endTimeEpoch)
@@ -466,8 +461,7 @@ public class UserInfoController {
                                 current_amount.clear();
                                 placebid.setDisable(true);
                                 bidprice.setDisable(true);
-                                UserSession.getConnection()
-                                        .send(new FetchDataRequest("FETCH_INVENTORY"));
+                                UserSession.getConnection().send(new FetchDataRequest("FETCH_INVENTORY"));
                             }
                             else {
                                 currentAuctionId = null;

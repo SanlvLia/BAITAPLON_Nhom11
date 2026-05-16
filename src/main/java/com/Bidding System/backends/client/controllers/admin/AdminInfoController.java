@@ -43,6 +43,9 @@ import backends.common.models.items.ItemType;
 import backends.common.models.items.ItemFactory;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -108,7 +111,7 @@ public class AdminInfoController {
     private TextField increment;
 
     @FXML
-    private TextField changeincremt;
+    private TextField changeIncrement;
 
     @FXML
     private TextField settime;
@@ -137,7 +140,11 @@ public class AdminInfoController {
     private Item itemAuction = null;
 
     private final java.util.Map<String, Long> currentEndTimeEpochs = new java.util.HashMap<>();
-
+    private final java.util.Map<String, String> itemToAuctionId = new java.util.HashMap<>();
+    private Item selectedAuctionItem;
+    private String currentAuctionId;
+    private double startingPrice;
+    private volatile LocalDateTime endAt;
     private volatile boolean isRestoringSelection = false;
 
     @FXML
@@ -207,6 +214,10 @@ public class AdminInfoController {
                     ReceiveMaxBidder maxBidder_msg;
                     try {
                         maxBidder_msg = mapper.readValue(json, ReceiveMaxBidder.class);
+                        String auctionId = maxBidder_msg.maxBidder.auctionId;
+                        if(currentAuctionId == null || !currentAuctionId.equals(auctionId)) {
+                            return;
+                        }
                         Platform.runLater(() -> {
                             high_bidder.setText(String.valueOf(maxBidder_msg.maxBidder.name));
                             current_amount.setText(String.valueOf(maxBidder_msg.maxBidder.amount));
@@ -300,22 +311,43 @@ public class AdminInfoController {
                         Platform.runLater(() -> {
                             System.out.println("[Admin] Nhan duoc trang thai phien: " + statusMsg.status);
                             start_end_auction.setDisable(false);
-
                             if ("STARTED".equals(statusMsg.status)) {
-                                inProgressItemIds.add(statusMsg.itemId);
                                 currentEndTimeEpochs.put(statusMsg.itemId, statusMsg.endTimeEpoch);
-                                if (itemAuction != null && itemAuction.getId().equals(statusMsg.itemId)) {
-                                    long epoch = statusMsg.endTimeEpoch - System.currentTimeMillis();
-                                    updateClock(java.time.Duration.ofMillis(epoch));
-
-                                    if (statusMsg.maxBidderName != null && !statusMsg.maxBidderName.isBlank()) {
-                                        high_bidder.setText(statusMsg.maxBidderName);
-                                        current_amount.setText(statusMsg.maxBidderAmount);
-                                    } else {
-                                        high_bidder.setText("No bids yet");
-                                        current_amount.setText("-");
-                                    }
+                                itemToAuctionId.put(statusMsg.itemId, statusMsg.auctionId);
+                            } else {
+                                currentEndTimeEpochs.remove(statusMsg.itemId);
+                                itemToAuctionId.remove(statusMsg.itemId);
+                            }
+                            // Phần còn lại chỉ chạy nếu đúng item đang chọn
+                            if (selectedAuctionItem == null || !selectedAuctionItem.getId().equals(statusMsg.itemId)) {
+                                return;
+                            }
+                            if ("STARTED".equals(statusMsg.status)) {
+                                currentAuctionId = statusMsg.auctionId;
+                                endAt = Instant.ofEpochMilli(statusMsg.endTimeEpoch)
+                                        .atZone(ZoneId.systemDefault())
+                                        .toLocalDateTime();
+                                Item runningItem = findItemById(statusMsg.itemId);
+                                if (runningItem != null) {
+                                    applyAuctionItemDetails(runningItem);
                                 }
+                                if (statusMsg.maxBidderName != null && !statusMsg.maxBidderName.isBlank()) {
+                                    high_bidder.setText(statusMsg.maxBidderName);
+                                    current_amount.setText(statusMsg.maxBidderAmount);
+                                }
+                                else {
+                                    high_bidder.setText("No bids yet");
+                                    current_amount.setText(
+                                            String.valueOf(startingPrice)
+                                    );
+                                }
+                            } else if ("NOT_STARTED".equals(statusMsg.status)) {
+                                // item scheduled nhưng chưa có phiên
+                                endAt = null;
+                                currentAuctionId = null;
+                                setClock0();
+                                high_bidder.setText("Not started yet");
+                                current_amount.setText(String.valueOf(startingPrice));
                             } else if ("ENDED".equals(statusMsg.status)) {
                                 inProgressItemIds.remove(statusMsg.itemId);
                                 currentEndTimeEpochs.remove(statusMsg.itemId);
@@ -372,7 +404,11 @@ public class AdminInfoController {
     private void handleAuctionClick(Item item) {
         if (item == null) return;
         itemAuction = item;
-
+        selectedAuctionItem = item;
+        currentAuctionId = null;
+        endAt = null;
+        high_bidder.setText("Loading...");
+        current_amount.setText("Loading...");
         // Chỉ kiểm tra RAM nội bộ
         if (inProgressItemIds.contains(item.getId())) {
             // Phiên đang chạy
@@ -405,7 +441,7 @@ public class AdminInfoController {
             lblTimer.setText("00:00:00");
             lblTimer.setTextFill(javafx.scene.paint.Color.RED);
             high_bidder.setText("No bids yet");
-            current_amount.setText("");
+            current_amount.setText("-");
         }
     }
 
@@ -430,6 +466,32 @@ public class AdminInfoController {
         };
     }
 
+    private Item findItemById(String itemId) {
+        if (itemId == null || itemId.isBlank()) {
+            return null;
+        }
+        for (Item item : upcomingitem.getItems()) {
+            if (itemId.equals(item.getId())) {
+                return item;
+            }
+        }
+        return null;
+    }
+    private void applyAuctionItemDetails(Item item) {
+        if (item == null) {
+            return;
+        }
+        if (itemname != null) {
+            itemname.setText(item.getName());
+        }
+        if (baseprice != null) {
+            baseprice.setText(String.valueOf(item.getPrices()));
+        }
+        startingPrice = item.getPrices();
+        if (increment != null) {
+            increment.setText(String.valueOf(item.getBidIncrement()));
+        }
+    }
     public void setAdmin(Account account) {
         adminAccount = account;
         if (account == null) {
@@ -466,7 +528,10 @@ public class AdminInfoController {
             e.printStackTrace();
         }
     }
-
+    private void setClock0() {
+        lblTimer.setText("00:00:00");
+        lblTimer.setTextFill(javafx.scene.paint.Color.RED);
+    }
     private  void loadRequestList(){
         try{
             RequestLog requestLogDB = new RequestLog();
