@@ -129,6 +129,9 @@ public class UserInfoController {
     private double currentBidIncrement;
     private double currentBiddingAmount;
     private String currentSellerId;
+    private Item selectedAuctionItem;
+    private final java.util.Map<String, Long> currentEndTimeEpochs = new java.util.HashMap<>();
+    private final java.util.Map<String, String> itemToAuctionId = new java.util.HashMap<>();
 
     @FXML
     public void initialize() throws Exception {
@@ -154,7 +157,7 @@ public class UserInfoController {
             loadupcomingAuctions();
             subcribePlaceBid();
             subscribeAuction();
-            subscribeAuctionStart();
+            //subscribeAuctionStart();
             subscribeAuctionList();
             startUIUpdater();
         }
@@ -185,15 +188,54 @@ public class UserInfoController {
         return currentBalance;
     }
 
+
     private void loadupcomingAuctions() {
+
         ITEMLIST.setCellFactory(this::createUpcomingAuctionCell);
         ITEMLIST.setItems(upcomingAuctions);
-        ITEMLIST.getSelectionModel().selectedItemProperty().addListener((obs, oldItem, selected) -> {
-            if (selected == null) return;
-            itemName.setText(selected.getName());
-            baseprice.setText(Double.toString(selected.getPrices()));
-            increment.setText(String.valueOf(selected.getBidIncrement()));
-        });
+        ITEMLIST.getSelectionModel()
+                .selectedItemProperty()
+                .addListener((obs, oldItem, selected) -> {
+                    if (selected == null) {
+                        return;
+                    }
+                    selectedAuctionItem = selected;
+                    currentAuctionId = null;
+                    currentSellerId = null;
+                    currentBiddingAmount = 0;
+                    endAt = null;
+                    applyAuctionItemDetails(selected);
+                    high_bidder.setText("Loading...");
+                    current_amount.setText("Loading...");
+                    placebid.setDisable(true);
+                    bidprice.setDisable(true);
+                    Long epoch = currentEndTimeEpochs.get(selected.getId());
+                    String storedAuctionId = itemToAuctionId.get(selected.getId());
+                    if (epoch != null && storedAuctionId != null) {
+                        long remain = epoch - System.currentTimeMillis();
+                        if (remain > 0) {
+                            endAt = Instant.ofEpochMilli(epoch)
+                                    .atZone(ZoneId.systemDefault())
+                                    .toLocalDateTime();
+                            currentAuctionId = storedAuctionId; // restore ngay từ map
+                            placebid.setDisable(false);         // enable bid ngay
+                            bidprice.setDisable(false);
+                            high_bidder.setText("Loading...");  // vẫn loading, chờ server
+                            current_amount.setText("Loading...");
+                        } else {
+                            endAt = null;
+                            setClock0();
+                        }
+                    } else {
+                        endAt = null;
+                        setClock0();
+                    }
+                    // FETCH STATUS
+                    ObjectNode req = new ObjectMapper().createObjectNode();
+                    req.put("type", "FETCH_AUCTION_STATUS");
+                    req.put("itemId", selected.getId());
+                    UserSession.getConnection().send(req.toString());
+                });
     }
 
     private void subscribeAuctionList() {
@@ -282,6 +324,11 @@ public class UserInfoController {
                     ReceiveMaxBidder maxBidder_msg;
                     try {
                         maxBidder_msg = mapper.readValue(json, ReceiveMaxBidder.class);
+                        String auctionId = node.path("auctionId").asText();
+                        if(currentAuctionId == null ||
+                                !currentAuctionId.equals(auctionId)) {
+                            return;
+                        }
                         Platform.runLater(() -> {
                             high_bidder.setText(String.valueOf(maxBidder_msg.maxBidder.name));
                             current_amount.setText(String.valueOf(maxBidder_msg.maxBidder.amount));
@@ -342,7 +389,7 @@ public class UserInfoController {
     private void subscribeAuction() {
         auctionHandler = json -> {
             ObjectMapper mapper = new ObjectMapper();
-            JsonNode node = null;
+            JsonNode node;
             try {
                 node = mapper.readTree(json);
             } catch (JsonProcessingException e) {
@@ -350,92 +397,168 @@ public class UserInfoController {
             }
             String type = resolveMessageType(node);
             switch (type) {
-                case ("AUCTION_STATUS") -> {
+                case "AUCTION_STATUS" -> {
                     try {
-                        AuctionStatusMessage statusMsg = mapper.readValue(json, AuctionStatusMessage.class);
+                        AuctionStatusMessage statusMsg =
+                                mapper.readValue(json, AuctionStatusMessage.class);
                         Platform.runLater(() -> {
-                            if(statusMsg.status.equals("STARTED")) {
+                            if ("STARTED".equals(statusMsg.status)) {
+                                currentEndTimeEpochs.put(statusMsg.itemId, statusMsg.endTimeEpoch);
+                                itemToAuctionId.put(statusMsg.itemId, statusMsg.itemId);
+                            } else {
+                                currentEndTimeEpochs.remove(statusMsg.itemId);
+                                itemToAuctionId.remove(statusMsg.itemId);
+                            }
+
+                            // Phần còn lại chỉ chạy nếu đúng item đang chọn
+                            if (selectedAuctionItem == null ||
+                                    !selectedAuctionItem.getId().equals(statusMsg.itemId)) {
+                                return;
+                            }
+
+                            if ("STARTED".equals(statusMsg.status)) {
                                 currentAuctionId = statusMsg.auctionId;
+                                currentSellerId = statusMsg.sellerId;
                                 endAt = Instant.ofEpochMilli(statusMsg.endTimeEpoch)
                                         .atZone(ZoneId.systemDefault())
                                         .toLocalDateTime();
+                                placebid.setDisable(false);
+                                bidprice.setDisable(false);
                                 Item runningItem = findItemById(statusMsg.itemId);
                                 if (runningItem != null) {
                                     applyAuctionItemDetails(runningItem);
                                 }
-                            } else if ("ENDED".equals(statusMsg.status)) {
+                                if (statusMsg.maxBidderName != null && !statusMsg.maxBidderName.isBlank()) {
+                                    high_bidder.setText(statusMsg.maxBidderName);
+                                    current_amount.setText(statusMsg.maxBidderAmount);
+                                    try {
+                                        currentBiddingAmount = Double.parseDouble(statusMsg.maxBidderAmount);
+
+                                    } catch (Exception e) {
+                                        currentBiddingAmount = startingPrice;
+                                    }
+
+                                }
+                                else {
+                                    high_bidder.setText("No bids yet");
+                                    current_amount.setText(
+                                            String.valueOf(startingPrice)
+                                    );
+                                    currentBiddingAmount = startingPrice;
+                                }
+                            } else if ("NOT_STARTED".equals(statusMsg.status)) {
+                                // item scheduled nhưng chưa có phiên
                                 endAt = null;
                                 currentAuctionId = null;
                                 setClock0();
-                                UserSession.getConnection().send(new FetchDataRequest("FETCH_INVENTORY"));
-
+                                high_bidder.setText("Not started yet");
+                                current_amount.setText(String.valueOf(startingPrice));
+                                placebid.setDisable(true);
+                                bidprice.setDisable(true);
+                            }
+                            else if ("ENDED".equals(statusMsg.status)) {
+                                currentEndTimeEpochs.remove(statusMsg.itemId);
+                                currentAuctionId = null;
+                                endAt = null;
+                                setClock0();
+                                high_bidder.setText("Auction ended");
+                                current_amount.clear();
+                                placebid.setDisable(true);
+                                bidprice.setDisable(true);
+                                UserSession.getConnection()
+                                        .send(new FetchDataRequest("FETCH_INVENTORY"));
+                            }
+                            else {
+                                currentAuctionId = null;
+                                endAt = null;
+                                setClock0();
+                                high_bidder.setText("No bids yet");
+                                current_amount.setText(
+                                        String.valueOf(startingPrice)
+                                );
+                                currentBiddingAmount = startingPrice;
+                                placebid.setDisable(true);
+                                bidprice.setDisable(true);
                             }
                         });
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
                     }
-
                 }
-                case ("START_AUCTION") -> {
+                case "START_AUCTION" -> {
                     try {
                         ObjectMapper startMapper = new ObjectMapper()
                                 .registerModule(new JavaTimeModule())
                                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-                        StartAuctionMessage msg = startMapper.readValue(json, StartAuctionMessage.class);
+                        StartAuctionMessage msg =
+                                startMapper.readValue(json, StartAuctionMessage.class);
                         Platform.runLater(() -> {
+                            // KHÔNG PHẢI ITEM ĐANG CHỌN
+                            if (selectedAuctionItem == null ||
+                                    !selectedAuctionItem.getId().equals(msg.auctionId)) {
+                                return;
+                            }
                             itemName.setText(msg.itemName);
                             baseprice.setText(String.valueOf(msg.startingPrice));
                             startingPrice = msg.startingPrice;
-
                             increment.setText(String.valueOf(msg.bidIncrement));
+                            currentBidIncrement = msg.bidIncrement;
+                            currentAuctionId = msg.auctionId;
+                            currentSellerId = msg.sellerId;
                             if (msg.endAt != null) {
                                 endAt = msg.endAt;
                             }
-                            currentAuctionId = msg.auctionId;
-                        });
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-                case ("AUCTION_RESULT") -> {
-                    try {
-                        AuctionResultMessage result = mapper.readValue(json, AuctionResultMessage.class);
-                        System.out.println("Winner ID: " + result.winnerId);
-                        Platform.runLater(() -> {
-                            if (result.hasBidder == true) {
-                                if(result.winnerId.equals(UserSession.getCurrentUser().getId())) {
-                                    showAlert(Alert.AlertType.INFORMATION,
-                                            "Auction Result",
-                                            "Congratulation! You are the winner! " +
-                                                    "\nAmount: " + result.winningAmount +
-                                                    "\nItem name: " + result.itemName +
-                                                    "\n Note: Your balance will be automatically deducted to pay for the item."
-                                    );
-                                    loadCurrentAmount();
-                                }
-                                else {
-                                    showAlert(Alert.AlertType.INFORMATION,
-                                            "Auction Result",
-                                            "Winner: " + result.winnerName +
-                                                    "\nAmount: " + result.winningAmount +
-                                                    "\nItem name: " + result.itemName
-                                    );
-                                }
-                            } else {
-                                System.out.println("Khong co bid");
-                                showAlert(Alert.AlertType.INFORMATION,
-                                        "Kết quả đấu giá",
-                                        "Phiên đấu giá kết thúc — Không có người đặt giá"
-                                );
+                            placebid.setDisable(false);
+                            bidprice.setDisable(false);
+                            if (high_bidder.getText().equals("Loading...")) {
+                                high_bidder.setText("No bids yet");
+                                current_amount.setText(String.valueOf(startingPrice));
                             }
                         });
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
                     }
                 }
-            };
-        };
+                case "AUCTION_RESULT" -> {
+                    try {
+                        AuctionResultMessage result = mapper.readValue(json, AuctionResultMessage.class);
+                        Platform.runLater(() -> {
+                            if (result.hasBidder) {
+                                if (result.winnerId.equals(UserSession.getCurrentUser().getId())) {
+                                    showAlert(
+                                            Alert.AlertType.INFORMATION,
+                                            "Auction Result",
+                                            "Congratulation! You are the winner!"
+                                                    + "\nAmount: " + result.winningAmount
+                                                    + "\nItem name: " + result.itemName
+                                                    + "\nYour balance was deducted automatically."
+                                    );
+                                    loadCurrentAmount();
+                                } else {
+                                    showAlert(
+                                            Alert.AlertType.INFORMATION,
+                                            "Auction Result",
+                                            "Winner: " + result.winnerName
+                                                    + "\nAmount: " + result.winningAmount
+                                                    + "\nItem name: " + result.itemName
+                                    );
+                                }
 
+                            } else {
+                                showAlert(
+                                        Alert.AlertType.INFORMATION,
+                                        "Auction Result",
+                                        "Auction ended without any bids"
+                                );
+                            }
+                        });
+
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        };
         MessageBus.getInstance().subscribe(auctionHandler);
     }
     private void subscribeDepositResult() {
@@ -662,47 +785,87 @@ public class UserInfoController {
     }
 
     public void placebid(ActionEvent event) throws IOException {
+        if (selectedAuctionItem == null) {
+            new Alert(
+                    Alert.AlertType.ERROR,
+                    "Please select an auction item",
+                    ButtonType.OK
+            ).show();
+            return;
+        }
         if (endAt == null || currentAuctionId == null) {
-            new Alert(Alert.AlertType.ERROR, "No auction is currently running", ButtonType.OK).show();
+            new Alert(
+                    Alert.AlertType.ERROR,
+                    "No auction is currently running",
+                    ButtonType.OK
+            ).show();
             return;
         }
         String amountStr = bidprice.getText();
         double amount;
         try {
             amount = Double.parseDouble(amountStr);
-            if(amount < 0) {
-                throw new IllegalArgumentException("Invalid amount : amount must be positive");
+            if (amount <= 0) {
+                throw new IllegalArgumentException(
+                        "Amount must be positive"
+                );
             }
-            if(currentSellerId.equals(UserSession.getCurrentUser().getId())) {
-                throw new IllegalArgumentException("Error: You can not place a bid on the item you sale!");
+            if (currentSellerId != null &&
+                    currentSellerId.equals(
+                            UserSession.getCurrentUser().getId())) {
+                throw new IllegalArgumentException(
+                        "You cannot bid on your own item"
+                );
             }
-            if(amount < startingPrice + currentBidIncrement) {
-                double temp = startingPrice + currentBidIncrement;
-                throw new IllegalArgumentException("Invalid amount : amount must be larger than " + temp + "!");
+            if (amount < startingPrice + currentBidIncrement) {
+                throw new IllegalArgumentException(
+                        "Minimum bid: "
+                                + (startingPrice + currentBidIncrement)
+                );
             }
-            if(amount > currentBalance) {
-                throw new IllegalArgumentException("Invalid amount : your balance is not enough");
+            if (amount > currentBalance) {
+                throw new IllegalArgumentException(
+                        "Your balance is insufficient"
+                );
             }
-            if(amount < currentBiddingAmount + currentBidIncrement ) {
-                double temp = currentBiddingAmount + currentBidIncrement;
-                System.out.println("TEMP: " + temp);
-                throw new IllegalArgumentException("Invalid amount : amount must be larger than " + temp + "!");
+            if (amount < currentBiddingAmount + currentBidIncrement) {
+                throw new IllegalArgumentException(
+                        "Minimum next bid: "
+                                + (currentBiddingAmount + currentBidIncrement)
+                );
             }
         } catch (NumberFormatException e) {
-            new Alert(Alert.AlertType.ERROR, "Invalid amount : not numbers", ButtonType.OK).show();
+            new Alert(
+                    Alert.AlertType.ERROR,
+                    "Invalid number",
+                    ButtonType.OK
+            ).show();
             return;
         } catch (IllegalArgumentException e) {
-            new Alert(Alert.AlertType.ERROR, String.valueOf(e), ButtonType.OK).show();
+            new Alert(
+                    Alert.AlertType.ERROR,
+                    e.getMessage(),
+                    ButtonType.OK
+            ).show();
             return;
         }
-        String currentUserId = UserSession.getCurrentUser().getId();
-        java.time.Duration remaining = java.time.Duration.between(LocalDateTime.now(), endAt);
-        if (remaining.isZero() || remaining.isNegative() || endAt == null) {
-            new Alert(Alert.AlertType.ERROR, "The bidding period has expired", ButtonType.OK).show();
+        java.time.Duration remaining =
+                java.time.Duration.between(LocalDateTime.now(), endAt);
+        if (remaining.isZero() || remaining.isNegative()) {
+            new Alert(
+                    Alert.AlertType.ERROR,
+                    "Auction expired",
+                    ButtonType.OK
+            ).show();
             return;
-        } else {
-            UserSession.getConnection().send(new ClientSendBid(currentUserId, amount, currentAuctionId));
         }
+        UserSession.getConnection().send(
+                new ClientSendBid(
+                        UserSession.getCurrentUser().getId(),
+                        amount,
+                        currentAuctionId
+                )
+        );
     }
 
     private void setClock0() {

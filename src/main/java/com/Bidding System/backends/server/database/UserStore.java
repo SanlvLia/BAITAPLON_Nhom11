@@ -197,6 +197,22 @@ public class UserStore {
             throw new IOException("Khong the luu nguoi dung vao SQLite.", e);
         }
     }
+    public String getNameById(String userId) throws IOException {
+        try (Connection connection = openConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                 SELECT name FROM users WHERE id = ?
+                 """)) {
+            statement.setString(1, userId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getString("name");
+                }
+                return null;
+            }
+        } catch (SQLException e) {
+            throw new IOException("Khong the lay name theo id", e);
+        }
+    }
     public synchronized void update_balance(double new_balance, String userId) throws IOException {
         try (Connection connection = openConnection();
              PreparedStatement statement = connection.prepareStatement("""

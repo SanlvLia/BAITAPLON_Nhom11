@@ -265,7 +265,7 @@ public final class AuctionService {
 
     public static Duration getDuration(String itemId) {
         Auction aut = ACTIVE_AUCTIONS.get(itemId);
-        if (aut == null) {
+        if (aut == null || aut.getEndAt() == null) {
             return Duration.ZERO;
         }
         return Duration.between(LocalDateTime.now(), aut.getEndAt());

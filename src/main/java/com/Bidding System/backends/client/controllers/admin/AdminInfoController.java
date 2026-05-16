@@ -1,10 +1,12 @@
 package backends.client.controllers.admin;
 
 import backends.server.database.RequestLog;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.gson.Gson;
 import backends.client.network.MessageBus;
 import backends.client.session.UserSession;
@@ -189,7 +191,9 @@ public class AdminInfoController {
     private void subcribeAuctionController() {
         MessageBus.getInstance().subscribe(json -> {
             System.out.println("[AdminInfoController] Received message: " + json);
-            ObjectMapper mapper = new ObjectMapper();
+            ObjectMapper mapper = new ObjectMapper()
+                    .registerModule(new JavaTimeModule())
+                    .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
             JsonNode node = null;
             try {
                 node = mapper.readTree(json);

@@ -39,7 +39,7 @@ public class ClientHandler implements Runnable {
     private PrintWriter out;                        // field — dùng lâu dài
     private static final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     private String watchingAuctionId = null;        // client đang xem phiên nào
-
+    private UserStore userStore = new UserStore();
     public Gson gson = new Gson();
 
     private String userId = null;
@@ -173,24 +173,32 @@ public class ClientHandler implements Runnable {
                 // LẤY THÔNG TIN CỦA AUCTION ĐƯỢC CLICK VÀO
                 case "FETCH_AUCTION_STATUS" -> {
                     String itemId = node.get("itemId").asText();
+                    Auction managedAuction = AuctionService.getManagedActiveAuction(itemId);
                     java.time.Duration remaining = AuctionService.getDuration(itemId);
-
                     AuctionStatusMessage statusMsg = new AuctionStatusMessage();
                     statusMsg.itemId = itemId;
-
-                    // Lấy auctionId an toàn — không crash nếu null
-                    Auction managedAuction = AuctionService.getManagedActiveAuction(itemId);
                     statusMsg.auctionId = (managedAuction != null) ? managedAuction.getAuctionId() : "";
-
-                    if (!remaining.isZero() && !remaining.isNegative()) {
+                    boolean isRunning = !remaining.isZero() && !remaining.isNegative() && managedAuction != null;
+                    if (isRunning) {
                         statusMsg.status = "STARTED";
-                        statusMsg.itemId = itemId;
-                        statusMsg.auctionId = AuctionService.getManagedActiveAuction(itemId).getAuctionId(); // hoặc lấy auctionId thật nếu cần
                         statusMsg.endTimeEpoch = System.currentTimeMillis() + remaining.toMillis();
+                        if (managedAuction.getCurrentHighestBidderId() != null) {
+                            statusMsg.maxBidderAmount = String.valueOf(managedAuction.getCurrentHighestBid());
+                            try {
+                                Inventory inventoryDB = new Inventory();
+                                statusMsg.sellerId = inventoryDB.getUserIdByItemId(itemId);
+                                String name = userStore.getNameById(managedAuction.getCurrentHighestBidderId());
+                                statusMsg.maxBidderName = (name != null) ? name : "";
+                            } catch (Exception e) {
+                                statusMsg.maxBidderName = "";
+                            }
+                        }
+                    } else if (managedAuction == null) {
+                        // Chưa có auction nào — item đang SCHEDULED, chưa bắt đầu
+                        statusMsg.status = "NOT_STARTED";
+                        statusMsg.endTimeEpoch = 0;
                     } else {
                         statusMsg.status = "ENDED";
-                        statusMsg.itemId = itemId;
-                        statusMsg.auctionId = AuctionService.getManagedActiveAuction(itemId).getAuctionId();
                         statusMsg.endTimeEpoch = 0;
                     }
                     send(mapper.writeValueAsString(statusMsg));
