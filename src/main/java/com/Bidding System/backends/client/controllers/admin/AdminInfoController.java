@@ -304,8 +304,18 @@ public class AdminInfoController {
                             if ("STARTED".equals(statusMsg.status)) {
                                 inProgressItemIds.add(statusMsg.itemId);
                                 currentEndTimeEpochs.put(statusMsg.itemId, statusMsg.endTimeEpoch);
-                                Long epoch = statusMsg.endTimeEpoch - System.currentTimeMillis();
-                                updateClock(java.time.Duration.ofMillis(epoch));
+                                if (itemAuction != null && itemAuction.getId().equals(statusMsg.itemId)) {
+                                    long epoch = statusMsg.endTimeEpoch - System.currentTimeMillis();
+                                    updateClock(java.time.Duration.ofMillis(epoch));
+
+                                    if (statusMsg.maxBidderName != null && !statusMsg.maxBidderName.isBlank()) {
+                                        high_bidder.setText(statusMsg.maxBidderName);
+                                        current_amount.setText(statusMsg.maxBidderAmount);
+                                    } else {
+                                        high_bidder.setText("No bids yet");
+                                        current_amount.setText("-");
+                                    }
+                                }
                             } else if ("ENDED".equals(statusMsg.status)) {
                                 inProgressItemIds.remove(statusMsg.itemId);
                                 currentEndTimeEpochs.remove(statusMsg.itemId);
@@ -313,6 +323,8 @@ public class AdminInfoController {
                                 if (itemAuction != null && itemAuction.getId().equals(statusMsg.itemId)) {
                                     settime.clear();
                                     clearUI();
+                                    high_bidder.setText("-");
+                                    current_amount.setText("-");
                                 }
                             }
 
@@ -323,7 +335,7 @@ public class AdminInfoController {
                                 for (Item i : upcomingitem.getItems()) {
                                     if (i.getId().equals(statusMsg.itemId)) {
                                         upcomingitem.getSelectionModel().select(i);
-                                        handleAuctionClick(i);
+                                        //handleAuctionClick(i);
                                         break;
                                     }
                                 }
@@ -376,13 +388,13 @@ public class AdminInfoController {
             if (epoch == null || epoch == 0) {
                 // Hỏi Server thay vì hỏi AuctionService local (vốn không có dữ liệu)
                 lblTimer.setText("--:--:--");
-                ObjectNode req = new ObjectMapper().createObjectNode();
-                req.put("type", "FETCH_AUCTION_STATUS");
-                req.put("itemId", item.getId());
-                UserSession.getConnection().send(req.toString());
-                // Khi server trả về AUCTION_STATUS với status=STARTED,
-                // case "AUCTION_STATUS" sẽ tự cập nhật currentEndTimeEpochs
             }
+            ObjectNode req = new ObjectMapper().createObjectNode();
+            req.put("type", "FETCH_AUCTION_STATUS");
+            req.put("itemId", item.getId());
+            UserSession.getConnection().send(req);
+            // Khi server trả về AUCTION_STATUS với status=STARTED,
+            // case "AUCTION_STATUS" sẽ tự cập nhật currentEndTimeEpochs
         } else {
             // Phiên chưa chạy
             start_end_auction.setText("START AUCTION");
@@ -392,6 +404,8 @@ public class AdminInfoController {
             increment.setText(String.valueOf(item.getBidIncrement()));
             lblTimer.setText("00:00:00");
             lblTimer.setTextFill(javafx.scene.paint.Color.RED);
+            high_bidder.setText("No bids yet");
+            current_amount.setText("");
         }
     }
 

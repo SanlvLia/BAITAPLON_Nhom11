@@ -4,6 +4,7 @@ public class ServerBidRespond {
     public String name;
     public double amount;
     public String userId;
+    public String auctionId;
     public ServerBidRespond() {}
     public ServerBidRespond(String name, double amount, String userId) {
         this.name = name;

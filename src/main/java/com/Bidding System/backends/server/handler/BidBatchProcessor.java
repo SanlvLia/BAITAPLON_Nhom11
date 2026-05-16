@@ -123,7 +123,9 @@ public class BidBatchProcessor {
     // ── Broadcast max bidder tới tất cả client đang watch auction ─
     private void broadcastMaxBidder(String auctionId, ServerBidRespond maxBidder) {
         if (maxBidder == null) return;
+        maxBidder.auctionId = auctionId;
         ReceiveMaxBidder msg = new ReceiveMaxBidder(maxBidder);
+
         String json = new Gson().toJson(msg);
         AuctionRoom.getInstance().broadcast(json);
     }

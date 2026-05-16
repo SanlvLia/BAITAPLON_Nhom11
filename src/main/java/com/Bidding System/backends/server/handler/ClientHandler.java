@@ -1,15 +1,13 @@
 package backends.server.handler;
 
+import backends.common.messages.MsgBid.ServerBidRespond;
 import backends.common.models.accounts.User;
 import backends.common.models.bidding.Auction;
 import backends.common.models.core.Account;
 import backends.common.models.core.Item;
 import backends.common.models.items.ItemFactory;
 import backends.common.models.items.ItemType;
-import backends.server.database.Inventory;
-import backends.server.database.MyRequest;
-import backends.server.database.RequestLog;
-import backends.server.database.UserStore;
+import backends.server.database.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -182,16 +180,18 @@ public class ClientHandler implements Runnable {
                     if (isRunning) {
                         statusMsg.status = "STARTED";
                         statusMsg.endTimeEpoch = System.currentTimeMillis() + remaining.toMillis();
-                        if (managedAuction.getCurrentHighestBidderId() != null) {
-                            statusMsg.maxBidderAmount = String.valueOf(managedAuction.getCurrentHighestBid());
-                            try {
-                                Inventory inventoryDB = new Inventory();
-                                statusMsg.sellerId = inventoryDB.getUserIdByItemId(itemId);
-                                String name = userStore.getNameById(managedAuction.getCurrentHighestBidderId());
-                                statusMsg.maxBidderName = (name != null) ? name : "";
-                            } catch (Exception e) {
-                                statusMsg.maxBidderName = "";
-                            }
+                        try {
+                            Inventory inventoryDB = new Inventory();
+                            statusMsg.sellerId = inventoryDB.getUserIdByItemId(itemId);
+                        } catch (Exception e) {
+                            statusMsg.sellerId = "";
+                        }
+                        BidTransactions bidDb = new BidTransactions();
+                        ServerBidRespond maxBidder = bidDb.getMaxBidder(managedAuction.getAuctionId());
+                        if (maxBidder != null && maxBidder.userId != null) {
+                            statusMsg.maxBidderAmount = String.valueOf(maxBidder.amount);
+                            String name = userStore.getNameById(maxBidder.userId);
+                            statusMsg.maxBidderName = (name != null) ? name : "";
                         }
                     } else if (managedAuction == null) {
                         // Chưa có auction nào — item đang SCHEDULED, chưa bắt đầu

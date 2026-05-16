@@ -1,5 +1,6 @@
 package backends.client.controllers.user;
 
+import backends.common.messages.MsgAuction.FetchAuctionStatusRequest;
 import backends.server.database.MyRequest;
 import backends.server.database.RequestLog;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -220,6 +221,7 @@ public class UserInfoController {
                             currentAuctionId = storedAuctionId; // restore ngay từ map
                             placebid.setDisable(false);         // enable bid ngay
                             bidprice.setDisable(false);
+                            bidprice.clear();
                             high_bidder.setText("Loading...");  // vẫn loading, chờ server
                             current_amount.setText("Loading...");
                         } else {
@@ -234,7 +236,7 @@ public class UserInfoController {
                     ObjectNode req = new ObjectMapper().createObjectNode();
                     req.put("type", "FETCH_AUCTION_STATUS");
                     req.put("itemId", selected.getId());
-                    UserSession.getConnection().send(req.toString());
+                    UserSession.getConnection().send(req);
                 });
     }
 
@@ -324,9 +326,8 @@ public class UserInfoController {
                     ReceiveMaxBidder maxBidder_msg;
                     try {
                         maxBidder_msg = mapper.readValue(json, ReceiveMaxBidder.class);
-                        String auctionId = node.path("auctionId").asText();
-                        if(currentAuctionId == null ||
-                                !currentAuctionId.equals(auctionId)) {
+                        String auctionId = maxBidder_msg.maxBidder.auctionId;
+                        if(currentAuctionId == null || !currentAuctionId.equals(auctionId)) {
                             return;
                         }
                         Platform.runLater(() -> {
@@ -354,7 +355,6 @@ public class UserInfoController {
             }
         });
     }
-
     private void subscribeAuctionStart() {
         auctionStartHandler = rawJson -> {
             ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -404,19 +404,20 @@ public class UserInfoController {
                         Platform.runLater(() -> {
                             if ("STARTED".equals(statusMsg.status)) {
                                 currentEndTimeEpochs.put(statusMsg.itemId, statusMsg.endTimeEpoch);
-                                itemToAuctionId.put(statusMsg.itemId, statusMsg.itemId);
+                                itemToAuctionId.put(statusMsg.itemId, statusMsg.auctionId);
                             } else {
                                 currentEndTimeEpochs.remove(statusMsg.itemId);
                                 itemToAuctionId.remove(statusMsg.itemId);
                             }
 
                             // Phần còn lại chỉ chạy nếu đúng item đang chọn
-                            if (selectedAuctionItem == null ||
-                                    !selectedAuctionItem.getId().equals(statusMsg.itemId)) {
+                            if (selectedAuctionItem == null || !selectedAuctionItem.getId().equals(statusMsg.itemId)) {
+                                System.out.println("WRONG");
                                 return;
                             }
 
                             if ("STARTED".equals(statusMsg.status)) {
+                                System.out.println("UPDATED");
                                 currentAuctionId = statusMsg.auctionId;
                                 currentSellerId = statusMsg.sellerId;
                                 endAt = Instant.ofEpochMilli(statusMsg.endTimeEpoch)
@@ -806,22 +807,13 @@ public class UserInfoController {
         try {
             amount = Double.parseDouble(amountStr);
             if (amount <= 0) {
-                throw new IllegalArgumentException(
-                        "Amount must be positive"
-                );
+                throw new IllegalArgumentException("Amount must be positive");
             }
-            if (currentSellerId != null &&
-                    currentSellerId.equals(
-                            UserSession.getCurrentUser().getId())) {
-                throw new IllegalArgumentException(
-                        "You cannot bid on your own item"
-                );
-            }
+//            if (currentSellerId != null && currentSellerId.equals(UserSession.getCurrentUser().getId())) {
+//                throw new IllegalArgumentException("You cannot bid on your own item");
+//            }
             if (amount < startingPrice + currentBidIncrement) {
-                throw new IllegalArgumentException(
-                        "Minimum bid: "
-                                + (startingPrice + currentBidIncrement)
-                );
+                throw new IllegalArgumentException("Minimum bid: " + (startingPrice + currentBidIncrement));
             }
             if (amount > currentBalance) {
                 throw new IllegalArgumentException(
@@ -830,23 +822,14 @@ public class UserInfoController {
             }
             if (amount < currentBiddingAmount + currentBidIncrement) {
                 throw new IllegalArgumentException(
-                        "Minimum next bid: "
-                                + (currentBiddingAmount + currentBidIncrement)
+                        "Minimum next bid: " + (currentBiddingAmount + currentBidIncrement)
                 );
             }
         } catch (NumberFormatException e) {
-            new Alert(
-                    Alert.AlertType.ERROR,
-                    "Invalid number",
-                    ButtonType.OK
-            ).show();
+            new Alert(Alert.AlertType.ERROR, "Invalid number", ButtonType.OK).show();
             return;
         } catch (IllegalArgumentException e) {
-            new Alert(
-                    Alert.AlertType.ERROR,
-                    e.getMessage(),
-                    ButtonType.OK
-            ).show();
+            new Alert(Alert.AlertType.ERROR, e.getMessage(), ButtonType.OK).show();
             return;
         }
         java.time.Duration remaining =
@@ -859,13 +842,8 @@ public class UserInfoController {
             ).show();
             return;
         }
-        UserSession.getConnection().send(
-                new ClientSendBid(
-                        UserSession.getCurrentUser().getId(),
-                        amount,
-                        currentAuctionId
-                )
-        );
+        UserSession.getConnection().send(new ClientSendBid(UserSession.getCurrentUser().getId(), amount, currentAuctionId));
+        System.out.println("BID: " + amount + " TO: " + currentAuctionId);
     }
 
     private void setClock0() {
