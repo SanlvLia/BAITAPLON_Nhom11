@@ -177,6 +177,7 @@ public class UserInfoController {
             loaduser_request();
             remove_itemResult();
             subscribeAdditemResult();
+            subscribeUserRequestList();
             subscribeActionAccepted();
         }
 
@@ -1047,7 +1048,7 @@ public class UserInfoController {
                 e.printStackTrace();
             }
         };
-        MessageBus.getInstance().subscribe(AdditemResultHandler);
+        MessageBus.getInstance().subscribe(userRequestListHandler);
     }
 
     private void showAlert(Alert.AlertType type, String title, String content) {
