@@ -1,5 +1,6 @@
 package backends.server.handler;
 
+import backends.common.constants.Statuses;
 import backends.server.database.BidTransactions;
 import backends.server.database.Inventory;
 import backends.server.database.UserStore;
@@ -95,7 +96,7 @@ public class ServerAuctionManager {
             } else {
                 // Fix lỗi Orphan (Có trong DB nhưng mất trong RAM)
                 Inventory inventoryDB = new Inventory();
-                inventoryDB.updateItemStatus(itemId, Inventory.STATUS_WAITING);
+            inventoryDB.updateItemStatus(itemId, Statuses.WAITING);
                 broadcastEnd(itemId, auction);
             }
         } catch (Exception e) {

@@ -1,5 +1,6 @@
 package backends.server.database;
 
+import backends.common.constants.Statuses;
 import backends.common.messages.Common.Message;
 
 import java.io.IOException;
@@ -10,15 +11,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MyRequest {
-    public static final String STATUS_WAITING = "WAITING";
-    public static final String STATUS_SCHEDULED = "SCHEDULED";
-    public static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
-    public static final String STATUS_SOLD = "SOLD";
-    public static final String STATUS_UNSOLD = "UNSOLD";
-
-    public static final String STATUS_PENDING = "PENDING";
-    public static final String STATUS_ACCEPTED = "ACCEPTED";
-    public static final String STATUS_REJECTED = "REJECTED";
     //                STT INTEGER PRIMARY KEY AUTOINCREMENT,
     private static final Path DATA_DIRECTORY = Path.of("data");
     static final Path DATABASE_FILE = DATA_DIRECTORY.resolve("my_request.db");
@@ -52,7 +44,7 @@ public class MyRequest {
             statement.setString(2,message.Id_user);
             statement.setString(3,message.messageType);
             statement.setString(4, message.payloadJson);
-            statement.setString(5,STATUS_PENDING);
+            statement.setString(5,Statuses.PENDING);
 
             statement.executeUpdate();
         } catch (SQLException e) {

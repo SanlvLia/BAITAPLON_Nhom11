@@ -25,11 +25,9 @@ import javafx.scene.control.TextField;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import backends.common.messages.Common.Message;
-import backends.common.messages.Common.LoginPayload;
 import backends.common.models.core.Account;
 
 import java.io.IOException;
-import java.util.Optional;
 import java.util.function.Consumer;
 
 public class SignInController {

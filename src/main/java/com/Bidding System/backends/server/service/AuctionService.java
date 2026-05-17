@@ -1,5 +1,6 @@
 package backends.server.service;
 
+import backends.common.constants.Statuses;
 import backends.server.database.Auctions;
 import backends.server.database.BidTransactions;
 import backends.server.database.Inventory;
@@ -48,7 +49,7 @@ public final class AuctionService {
         }
 
         Inventory inventory = new Inventory();
-        Item itemAuction = inventory.getItemtoAuction(Inventory.STATUS_IN_PROGRESS);
+        Item itemAuction = inventory.getItemtoAuction(Statuses.IN_PROGRESS);
         if (itemAuction == null) {
             throw new IllegalStateException("Khong co san pham nao o trang thai STATUS_IN_PROGRESS");
         }
@@ -60,7 +61,7 @@ public final class AuctionService {
 
 //        Auctions auctionsRepository = new Auctions();
 //        auctionsRepository.saveAuction(auction);
-//        inventory.updateItemStatus(itemAuction.getId(), Inventory.STATUS_IN_PROGRESS);
+//        inventory.updateItemStatus(itemAuction.getId(), Statuses.IN_PROGRESS);
         registerActiveAuction(auction);
         scheduleAutoClose(auction, duration);
         return auction;
@@ -81,7 +82,7 @@ public final class AuctionService {
             throw new IllegalArgumentException("Thoi gian dau gia phai lon hon 0");
         }
         Inventory inventory = new Inventory();
-        inventory.updateItemStatus(item.getId(), Inventory.STATUS_IN_PROGRESS);
+        inventory.updateItemStatus(item.getId(), Statuses.IN_PROGRESS);
 
         Auction auction = new Auction(item);
         LocalDateTime now = LocalDateTime.now();
@@ -220,8 +221,8 @@ public final class AuctionService {
         );
 
         String itemStatus = auction.getCurrentHighestBidderId() == null
-                ? Inventory.STATUS_UNSOLD
-                : Inventory.STATUS_SOLD;
+                ? Statuses.UNSOLD
+                : Statuses.SOLD;
         inventory.updateItemStatus(auction.getItem().getId(), itemStatus);
     }
 
@@ -236,7 +237,7 @@ public final class AuctionService {
                 auction.getCurrentHighestBid(),
                 null
         );
-        inventory.updateItemStatus(auction.getItem().getId(), Inventory.STATUS_WAITING);
+        inventory.updateItemStatus(auction.getItem().getId(), Statuses.WAITING);
     }
 
     // Lay instance Auction dang duoc service quan ly neu da ton tai,

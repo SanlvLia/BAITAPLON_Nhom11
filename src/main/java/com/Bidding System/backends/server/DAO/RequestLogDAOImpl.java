@@ -1,5 +1,6 @@
 package backends.server.DAO;
 
+import backends.common.constants.Statuses;
 import backends.server.database.RequestLog;
 import backends.common.Extra.IdGenerator;
 import backends.common.messages.Common.Message;
@@ -10,8 +11,6 @@ import java.nio.file.Path;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-
-import static backends.server.database.RequestLog.STATUS_PENDING;
 
 public class RequestLogDAOImpl implements InterRequestDAO {
     // 1. Singleton Instance
@@ -162,7 +161,7 @@ public class RequestLogDAOImpl implements InterRequestDAO {
                      ORDER BY send_at ASC
                      """)) {
             statement.setString(1, requestType);
-            statement.setString(2, STATUS_PENDING);
+            statement.setString(2, Statuses.PENDING);
             try (ResultSet resultSet = statement.executeQuery()) {
                 List<RequestLog.RequestRecord> requests = new ArrayList<>();
                 while (resultSet.next()) {
@@ -196,7 +195,7 @@ public class RequestLogDAOImpl implements InterRequestDAO {
             statement.setString(3,message.messageType);
             statement.setString(4, message.payloadJson);
             statement.setBoolean(5,false);
-            statement.setString(6, STATUS_PENDING);
+            statement.setString(6, Statuses.PENDING);
             statement.executeUpdate();
             return requestId;
         } catch (SQLException e) {

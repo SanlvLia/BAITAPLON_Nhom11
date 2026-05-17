@@ -1,5 +1,6 @@
 package backends.server.database;
 
+import backends.common.constants.Statuses;
 import backends.common.Extra.IdGenerator;
 import backends.common.messages.Common.Message;
 
@@ -11,9 +12,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class RequestLog {
-    public static final String STATUS_PENDING = "PENDING";
-    public static final String STATUS_WAITING = "WAITING";
-    public static final String STATUS_REJECTED = "REJECTED";
 
     private static final Path DATA_DIRECTORY = Path.of("data");
     static final Path DATABASE_FILE = DATA_DIRECTORY.resolve("request_log.db");
@@ -50,7 +48,7 @@ public class RequestLog {
           statement.setString(3,message.messageType);
           statement.setString(4, message.payloadJson);
           statement.setBoolean(5,false);
-          statement.setString(6, STATUS_PENDING);
+          statement.setString(6, Statuses.PENDING);
           statement.executeUpdate();
           return requestId;
         } catch (SQLException e) {
@@ -67,7 +65,7 @@ public class RequestLog {
                      ORDER BY send_at ASC
                      """)) {
             statement.setString(1, requestType);
-            statement.setString(2, STATUS_PENDING);
+            statement.setString(2, Statuses.PENDING);
             try (ResultSet resultSet = statement.executeQuery()) {
                 List<RequestRecord> requests = new ArrayList<>();
                 while (resultSet.next()) {
@@ -189,7 +187,7 @@ public class RequestLog {
                      WHERE selected = true AND status = ?
                     ORDER  BY send_at ASC
                     """)){
-            statement.setString(1, STATUS_PENDING);
+            statement.setString(1, Statuses.PENDING);
             try (ResultSet resultSet = statement.executeQuery()) {
                 List<RequestRecord> requests = new ArrayList<>();
                 while(resultSet.next()){

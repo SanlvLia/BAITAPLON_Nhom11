@@ -3,10 +3,27 @@ package backends.client.controllers.admin;
 import backends.server.database.RequestLog;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import backends.client.controllers.ViewLoader;
+import backends.client.network.MessageBus;
+import backends.client.session.UserSession;
+import backends.common.messages.Common.Createitempayload;
+import backends.common.messages.MsgAuction.AdminActionCommand;
+import backends.common.messages.MsgAuction.AuctionCommandMessage;
+import backends.common.messages.MsgAuction.AuctionStatusMessage;
+import backends.common.messages.MsgAuction.StartAuctionMessage;
+import backends.common.messages.MsgBid.ReceiveMaxBidder;
+import backends.common.messages.MsgData.FetchDataRequest;
+import backends.common.messages.MsgData.RequestListDataResponse;
+import backends.common.messages.MsgData.RequestRecordDto;
+import backends.common.models.core.Account;
+import backends.common.models.core.Item;
+import backends.common.models.items.ItemFactory;
+import backends.common.models.items.ItemType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.gson.Gson;
 import backends.client.network.MessageBus;
 import backends.client.session.UserSession;
@@ -29,18 +46,6 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-import backends.common.messages.Common.Createitempayload;
-import backends.common.messages.MsgAuction.AdminActionCommand;
-import backends.common.messages.MsgAuction.AuctionCommandMessage;
-import backends.common.messages.MsgAuction.AuctionStatusMessage;
-import backends.common.messages.MsgAuction.StartAuctionMessage;
-import backends.common.messages.MsgBid.ReceiveMaxBidder;
-import backends.common.messages.MsgData.FetchDataRequest;
-import backends.common.messages.MsgData.RequestListDataResponse;
-import backends.common.models.core.Account;
-import backends.common.models.core.Item;
-import backends.common.models.items.ItemType;
-import backends.common.models.items.ItemFactory;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -48,6 +53,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public class AdminInfoController {
@@ -100,12 +107,12 @@ public class AdminInfoController {
     private TextField current_amount;
 
     @FXML
-    private ListView<RequestLog.RequestRecord> requestlist; // Đổi String thành RequestRecord
+    private ListView<RequestRecordDto> requestlist;
 
-    private ObservableList<RequestLog.RequestRecord> item_wait_accepted = FXCollections.observableArrayList();
-
-    public final java.util.Set<String> selectedRequestIds = new java.util.HashSet<>();
-    private final java.util.Set<String> inProgressItemIds = new java.util.HashSet<>();
+    private final ObservableList<RequestRecordDto> item_wait_accepted = FXCollections.observableArrayList();
+    private final Set<String> selectedRequestIds = new java.util.HashSet<>();
+    private final Set<String> inProgressItemIds = new java.util.HashSet<>();
+    private final Map<String, RequestRecordDto> requestCache = new java.util.HashMap<>();
 
     @FXML
     private ListView<Item> inventory;
@@ -144,11 +151,7 @@ public class AdminInfoController {
     private ListView<Item> runningitem;
 
     private Account adminAccount;
-
     public Consumer<String> user_requesthandler;
-
-    private final RequestLog requestlog = new  RequestLog();
-
     private Item itemAuction = null;
 
     private static final String ACTIVE_NAV_STYLE =
@@ -163,6 +166,7 @@ public class AdminInfoController {
     private double startingPrice;
     private volatile LocalDateTime endAt;
     private volatile boolean isRestoringSelection = false;
+    private Timeline uiTimeline;
 
     @FXML
     public void initialize() {
@@ -249,6 +253,7 @@ public class AdminInfoController {
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
+
             String type = resolveMessageType(node);
             System.out.println("[AdminInfoController] Message type: " + type);
             switch (type) {
@@ -329,23 +334,25 @@ public class AdminInfoController {
                     try {
                         RequestListDataResponse resp = mapper.readValue(json, RequestListDataResponse.class);
                         Platform.runLater(() -> {
-                            // Chỉ việc nhồi data mới vào, list sẽ TỰ ĐỘNG nảy số trên màn hình
-                            // Tuyệt đối KHÔNG gọi lại setCellFactory hay setItems ở đây!
-                            item_wait_accepted.setAll(resp.requests);
+                            requestCache.clear();
+                            item_wait_accepted.clear();
+
+                            if (resp.requests != null) {
+                                for (RequestRecordDto request : resp.requests) {
+                                    requestCache.put(request.requestId, request);
+                                    item_wait_accepted.add(request);
+                                }
+                            }
                         });
                     } catch (Exception e) {
                         System.err.println("Không the readValue của REQUEST_LIST_DATA của admincontroller");
                         e.printStackTrace();
                     }
                 }
-
-                // Nhận báo cáo thao tác thành công (ví dụ duyệt item xong)
-                case "ACTION_SUCCESS" -> {
-                    Platform.runLater(() -> {
-                        loadInventoryData();
-                        loadrequest();
-                    });
-                }
+                case "ACTION_SUCCESS" -> Platform.runLater(() -> {
+                    loadInventoryData();
+                    loadrequest();
+                });
                 case "AUCTION_STATUS" -> {
                     try {
                         AuctionStatusMessage statusMsg = mapper.readValue(json, AuctionStatusMessage.class);
@@ -353,7 +360,9 @@ public class AdminInfoController {
                         Platform.runLater(() -> {
                             System.out.println("[Admin] Nhan duoc trang thai phien: " + statusMsg.status);
                             start_end_auction.setDisable(false);
+
                             if ("STARTED".equals(statusMsg.status)) {
+                                inProgressItemIds.add(statusMsg.itemId);
                                 currentEndTimeEpochs.put(statusMsg.itemId, statusMsg.endTimeEpoch);
                                 itemToAuctionId.put(statusMsg.itemId, statusMsg.auctionId);
                             } else {
@@ -611,8 +620,9 @@ public class AdminInfoController {
             return;
         }
         for (String reqId : selectedRequestIds) {
-            String userid = requestlog.getUserbyRequestId(reqId);
-            UserSession.getConnection().send(new AdminActionCommand("ACCEPT_REQUEST",reqId , userid));
+            RequestRecordDto request = requestCache.get(reqId);
+            String userId = request != null ? request.userId : null;
+            UserSession.getConnection().send(new AdminActionCommand("ACCEPT_REQUEST", reqId, userId));
         }
     }
 
@@ -629,8 +639,6 @@ public class AdminInfoController {
         UserSession.getConnection().send(new AdminActionCommand("SCHEDULE_ITEM", currentItem.getId()));
         inventory.getSelectionModel().clearSelection();
     }
-
-    private Timeline uiTimeline;
 
     private void startUIUpdater() {
         if (uiTimeline != null) uiTimeline.stop();
@@ -811,38 +819,40 @@ public class AdminInfoController {
         return items;
     }
 }
-class CustomItemRequestCell extends ListCell<RequestLog.RequestRecord> {
+
+class CustomItemRequestCell extends ListCell<RequestRecordDto> {
     private final HBox content;
     private final Button view;
-    private final Label name_item;
+    private final Label nameItem;
     private final CheckBox selected;
     private final Gson gson = new Gson();
-    private final java.util.Set<String> selectedIds; // Tham chiếu đến RAM của Controller
+    private final Set<String> selectedIds;
 
-    protected CustomItemRequestCell(java.util.Set<String> selectedIds) {
+    protected CustomItemRequestCell(Set<String> selectedIds) {
         super();
         this.selectedIds = selectedIds;
+
         Pane spacer = new Pane();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        name_item = new Label();
+        nameItem = new Label();
         selected = new CheckBox();
         view = new Button("view");
 
-        content = new HBox(10, name_item, spacer, view, selected);
+        content = new HBox(10, nameItem, spacer, view, selected);
         content.setAlignment(Pos.CENTER_LEFT);
 
         view.setOnAction(event -> {
-            RequestLog.RequestRecord request = getItem();
+            RequestRecordDto request = getItem();
             if (request == null) return;
 
-            Createitempayload payload = gson.fromJson(request.requestInfo(), Createitempayload.class);
+            Createitempayload payload = gson.fromJson(request.requestInfo, Createitempayload.class);
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
             alert.setTitle("Thong tin item");
             alert.setHeaderText(payload.getItem_name());
             alert.setContentText(
-                    "Request ID: " + request.id() + "\n" +
-                            "User ID: " + request.userId() + "\n" +
+                    "Request ID: " + request.requestId + "\n" +
+                            "User ID: " + request.userId + "\n" +
                             "Type: " + payload.getItemType() + "\n" +
                             "Base price: " + payload.getBasePrice() + "\n" +
                             "Info: " + payload.getItemInfo()
@@ -851,27 +861,24 @@ class CustomItemRequestCell extends ListCell<RequestLog.RequestRecord> {
         });
 
         selected.setOnAction(event -> {
-            RequestLog.RequestRecord request = getItem();
-            if (request != null) {
-                if (selected.isSelected()) {
-                    selectedIds.add(request.id()); // Lưu vào RAM
-                } else {
-                    selectedIds.remove(request.id());
-                }
+            RequestRecordDto request = getItem();
+            if (request == null) return;
+
+            if (selected.isSelected()) {
+                selectedIds.add(request.requestId);
+            } else {
+                selectedIds.remove(request.requestId);
             }
         });
     }
 
     @Override
-    protected void updateItem(RequestLog.RequestRecord request, boolean empty) {
+    protected void updateItem(RequestRecordDto request, boolean empty) {
         super.updateItem(request, empty);
         if (request != null && !empty) {
-            Createitempayload payload = gson.fromJson(request.requestInfo(), Createitempayload.class);
-            name_item.setText(payload.getItem_name());
-
-            // Phục hồi trạng thái check dựa vào bộ nhớ RAM
-            selected.setSelected(selectedIds.contains(request.id()));
-
+            Createitempayload payload = gson.fromJson(request.requestInfo, Createitempayload.class);
+            nameItem.setText(payload.getItem_name());
+            selected.setSelected(selectedIds.contains(request.requestId));
             setGraphic(content);
         } else {
             setGraphic(null);

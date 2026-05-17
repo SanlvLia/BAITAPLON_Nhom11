@@ -1,5 +1,6 @@
 package backends.server.handler;
 
+import backends.common.constants.Statuses;
 import backends.common.messages.MsgBid.ServerBidRespond;
 import backends.common.models.accounts.User;
 import backends.common.models.bidding.Auction;
@@ -22,6 +23,9 @@ import backends.common.messages.MsgAuction.AuctionStatusMessage;
 import backends.common.messages.MsgBid.ClientSendBid;
 import backends.common.messages.MsgData.InventoryDataResponse;
 import backends.common.messages.MsgData.RequestListDataResponse;
+import backends.common.messages.MsgData.FetchUserRequestsRequest;
+import backends.common.messages.MsgData.RequestRecordDto;
+import backends.common.messages.MsgData.UserRequestListResponse;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -155,15 +159,38 @@ public class ClientHandler implements Runnable {
                     success.put("type", "SIGNUP_OK");
                     send(success.toString());// gửi lại tín hiệu sign up thành công
                 }
+                case "FETCH_USER_REQUESTS" -> {
+                    FetchUserRequestsRequest request = mapper.readValue(json, FetchUserRequestsRequest.class);
+                    RequestLog requestLogDB = new RequestLog();
+                    UserRequestListResponse response = new UserRequestListResponse();
+
+                    response.requests = requestLogDB.getRequestsByType(
+                                    request.requestType == null ? "additem" : request.requestType
+                            ).stream()
+                            .filter(record -> request.userId != null && request.userId.equals(record.userId()))
+                            .map(record -> {
+                                RequestRecordDto dto = new RequestRecordDto();
+                                dto.requestId = record.id();
+                                dto.userId = record.userId();
+                                dto.requestType = record.requestType();
+                                dto.requestInfo = record.requestInfo();
+                                dto.time = record.time();
+                                dto.status = record.status();
+                                return dto;
+                            })
+                            .toList();
+
+                    send(mapper.writeValueAsString(response));
+                }
 
                 // ADMIN XIN DỮ LIỆU INVENTORY
                 case "FETCH_INVENTORY" -> {
                     Inventory inventoryDB = new Inventory();
                     InventoryDataResponse response = new InventoryDataResponse();
 
-                    response.waitingItems = inventoryDB.getItemsByStatus(Inventory.STATUS_WAITING);
-                    response.scheduledItems = inventoryDB.getItemsByStatus(Inventory.STATUS_SCHEDULED);
-                    response.inProgressItems = inventoryDB.getItemsByStatus(Inventory.STATUS_IN_PROGRESS);
+                    response.waitingItems = inventoryDB.getItemsByStatus(Statuses.WAITING);
+                    response.scheduledItems = inventoryDB.getItemsByStatus(Statuses.SCHEDULED);
+                    response.inProgressItems = inventoryDB.getItemsByStatus(Statuses.IN_PROGRESS);
 
                     send(mapper.writeValueAsString(response));
                 }
@@ -199,6 +226,8 @@ public class ClientHandler implements Runnable {
                         statusMsg.endTimeEpoch = 0;
                     } else {
                         statusMsg.status = "ENDED";
+                        statusMsg.itemId = itemId;
+                        statusMsg.auctionId = AuctionService.getManagedActiveAuction(itemId).getAuctionId();
                         statusMsg.endTimeEpoch = 0;
                     }
                     send(mapper.writeValueAsString(statusMsg));
@@ -209,7 +238,18 @@ public class ClientHandler implements Runnable {
                     RequestLog requestLogDB = new RequestLog();
                     RequestListDataResponse response = new RequestListDataResponse();
 
-                    response.requests = requestLogDB.getRequestsByType("additem");
+                    response.requests = requestLogDB.getRequestsByType("additem").stream()
+                            .map(record -> {
+                                RequestRecordDto dto = new RequestRecordDto();
+                                dto.requestId = record.id();
+                                dto.userId = record.userId();
+                                dto.requestType = record.requestType();
+                                dto.requestInfo = record.requestInfo();
+                                dto.time = record.time();
+                                dto.status = record.status();
+                                return dto;
+                            })
+                            .toList();
 
                     send(mapper.writeValueAsString(response));
                 }
@@ -221,21 +261,21 @@ public class ClientHandler implements Runnable {
                     RequestLog requestLogDB = new RequestLog();
 
                     if ("SCHEDULE_ITEM".equals(cmd.action)) {
-                        inventoryDB.updateItemStatus(cmd.targetId, Inventory.STATUS_SCHEDULED);
+                        inventoryDB.updateItemStatus(cmd.targetId, Statuses.SCHEDULED);
 
                         // Báo lại cho Admin là đã xong để Admin load lại list
                         ObjectNode ack = mapper.createObjectNode();
                         ack.put("type", "ACTION_SUCCESS");
                         send(ack.toString());
                         InventoryDataResponse inventoryResponse = new InventoryDataResponse();
-                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(Inventory.STATUS_WAITING);
-                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(Inventory.STATUS_SCHEDULED);
-                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(Inventory.STATUS_IN_PROGRESS);
+                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(Statuses.WAITING);
+                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(Statuses.SCHEDULED);
+                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(Statuses.IN_PROGRESS);
 
                         AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(inventoryResponse));
                     }
                     else if ("REJECT_REQUEST".equals(cmd.action)) {
-                        requestLogDB.updateRequestStatus(cmd.targetId, RequestLog.STATUS_REJECTED);
+                        requestLogDB.updateRequestStatus(cmd.targetId, Statuses.REJECTED);
 
                         ObjectNode ack = mapper.createObjectNode();
                         ack.put("type", "ACTION_SUCCESS");
@@ -258,7 +298,7 @@ public class ClientHandler implements Runnable {
 
                             // Lưu vào Inventory và đổi trạng thái Request
                             inventoryDB.saveItem(item, request.userId(),request.id());
-                            requestLogDB.updateRequestStatus(cmd.targetId, RequestLog.STATUS_WAITING);
+                            requestLogDB.updateRequestStatus(cmd.targetId, Statuses.WAITING);
                             // gửi tín hiệu cho usercontroller tự cập nhật dữ liệu (trạng thái của item)
                             ObjectNode response =  mapper.createObjectNode();
                             response.put("type", "ACCEPTED_SUCCESS");
@@ -267,7 +307,7 @@ public class ClientHandler implements Runnable {
                                     : request.userId();
                             response.put("user_id" , targetUserId);
                             response.put("request_id" ,  cmd.targetId);
-                            response.put("status" , RequestLog.STATUS_WAITING);
+                            response.put("status" , Statuses.WAITING);
 
                             ClientHandler targetHandler = AuctionRoom.getInstance().connectors.get(targetUserId);
                             if (targetHandler != null) {
@@ -394,8 +434,8 @@ public class ClientHandler implements Runnable {
                     RequestLog requestlog = new RequestLog();
                     Inventory inventoryDB = new  Inventory();
 
-                    if (MyRequest.STATUS_IN_PROGRESS.equals(status_item)
-                            || MyRequest.STATUS_SCHEDULED.equals(status_item)) {
+                    if (Statuses.IN_PROGRESS.equals(status_item)
+                            || Statuses.SCHEDULED.equals(status_item)) {
                         ObjectNode response =  mapper.createObjectNode();
                         response.put("type", "remove_item_fail");
                         send (response.toString());// gửi thông baos lỗi cho usercontroller
@@ -413,13 +453,24 @@ public class ClientHandler implements Runnable {
                         send(response.toString());
 
                         InventoryDataResponse inventoryResponse = new InventoryDataResponse();
-                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(Inventory.STATUS_WAITING);
-                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(Inventory.STATUS_SCHEDULED);
-                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(Inventory.STATUS_IN_PROGRESS);
+                        inventoryResponse.waitingItems = inventoryDB.getItemsByStatus(Statuses.WAITING);
+                        inventoryResponse.scheduledItems = inventoryDB.getItemsByStatus(Statuses.SCHEDULED);
+                        inventoryResponse.inProgressItems = inventoryDB.getItemsByStatus(Statuses.IN_PROGRESS);
                         AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(inventoryResponse));
 
                         RequestListDataResponse requestResponse = new RequestListDataResponse();
-                        requestResponse.requests = requestlog.getRequestsByType("additem");
+                        requestResponse.requests = requestlog.getRequestsByType("additem").stream()
+                                .map(record -> {
+                                    RequestRecordDto dto = new RequestRecordDto();
+                                    dto.requestId = record.id();
+                                    dto.userId = record.userId();
+                                    dto.requestType = record.requestType();
+                                    dto.requestInfo = record.requestInfo();
+                                    dto.time = record.time();
+                                    dto.status = record.status();
+                                    return dto;
+                                })
+                                .toList();
                         AuctionRoom.getInstance().broadcast(mapper.writeValueAsString(requestResponse));
                     }
 

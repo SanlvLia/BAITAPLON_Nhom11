@@ -1,24 +1,46 @@
 package backends.client.controllers.user;
 
 import backends.common.messages.MsgAuction.FetchAuctionStatusRequest;
-import backends.server.database.MyRequest;
-import backends.server.database.RequestLog;
+
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.util.Duration;
+import backends.client.controllers.ViewLoader;
+import backends.client.network.MessageBus;
+import backends.client.session.UserSession;
+import backends.common.constants.Statuses;
+import backends.common.messages.Common.Createitempayload;
+import backends.common.messages.Common.Message;
+import backends.common.messages.Common.RemoveRequestpayload;
+import backends.common.messages.MsgAuction.AuctionResultMessage;
+import backends.common.messages.MsgAuction.AuctionStatusMessage;
+import backends.common.messages.MsgAuction.StartAuctionMessage;
+import backends.common.messages.MsgBid.ClientSendBid;
+import backends.common.messages.MsgBid.ReceiveMaxBidder;
+import backends.common.messages.MsgData.FetchDataRequest;
+import backends.common.messages.MsgData.FetchUserRequestsRequest;
+import backends.common.messages.MsgData.RequestRecordDto;
+import backends.common.messages.MsgData.UserRequestListResponse;
+import backends.common.models.accounts.User;
+import backends.common.models.core.Item;
+import backends.common.models.items.ItemFactory;
+import backends.common.models.items.ItemType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.gson.Gson;
-import backends.client.network.MessageBus;
-import backends.client.session.UserSession;
-import backends.client.controllers.ViewLoader;
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -33,21 +55,11 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
-import backends.common.messages.Common.Createitempayload;
-import backends.common.messages.Common.Message;
-import backends.common.messages.Common.RemoveRequestpayload;
-import backends.common.messages.MsgAuction.AuctionResultMessage;
-import backends.common.messages.MsgAuction.AuctionStatusMessage;
-import backends.common.messages.MsgAuction.StartAuctionMessage;
-import backends.common.messages.MsgBid.ClientSendBid;
-import backends.common.messages.MsgBid.ReceiveMaxBidder;
-import backends.common.messages.MsgData.FetchDataRequest;
-import backends.common.models.accounts.User;
-import javafx.collections.ObservableList;
-import backends.common.models.core.Item;
-import backends.common.models.items.*;
+import javafx.util.Duration;
 
+import java.io.IOException;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -99,21 +111,19 @@ public class UserInfoController {
     @FXML
     private TextField itemName;
 
-
     @FXML
     private Button autobid;
 
-    private final MyRequest myrequest = new MyRequest();
     @FXML
-    private ListView<String> List_AcceptedItem;
+    private ListView<RequestRecordDto> List_AcceptedItem;
 
-    private ObservableList<String> AcceptedItem_info = FXCollections.observableArrayList();
+    private final ObservableList<RequestRecordDto> AcceptedItem_info = FXCollections.observableArrayList();
     private User user;
 
     @FXML
     private ListView<Item> ITEMLIST;
-    private ObservableList<Item> upcomingAuctions = FXCollections.observableArrayList();
 
+    private final ObservableList<Item> upcomingAuctions = FXCollections.observableArrayList();
     private Consumer<String> depositResultHandler;
     private Consumer<String> change_infoResultHandler;
     private Consumer<String> AdditemResultHandler;
@@ -121,10 +131,10 @@ public class UserInfoController {
     private Consumer<String> removeitemHandler;
     private Consumer<String> actionAcceptedHandler;
     private Consumer<String> auctionHandler;
+    private Consumer<String> userRequestListHandler;
     private volatile LocalDateTime endAt;
     private volatile String currentAuctionId;
     private Timeline timeline;
-    private Timeline upcomingSyncTimeline;
     private static double currentBalance;
     private double startingPrice;
     private double currentBidIncrement;
@@ -250,16 +260,14 @@ public class UserInfoController {
                 throw new RuntimeException(e);
             }
             String type = resolveMessageType(node);
-            switch (type) {
-                case "INVENTORY_DATA" -> {
-                    List<Item> scheduled = parseItemsFromJson(node.path("scheduledItems"));
-                    List<Item> inProgress = parseItemsFromJson(node.path("inProgressItems"));
-                    List<Item> items = new ArrayList<>();
-                    items.addAll(scheduled);
-                    items.addAll(inProgress);
+            if ("INVENTORY_DATA".equals(type)) {
+                List<Item> scheduled = parseItemsFromJson(node.path("scheduledItems"));
+                List<Item> inProgress = parseItemsFromJson(node.path("inProgressItems"));
+                List<Item> items = new ArrayList<>();
+                items.addAll(scheduled);
+                items.addAll(inProgress);
 
-                    Platform.runLater(() -> upcomingAuctions.setAll(items));
-                }
+                Platform.runLater(() -> upcomingAuctions.setAll(items));
             }
         });
     }
@@ -355,17 +363,19 @@ public class UserInfoController {
             }
         });
     }
+
     private void subscribeAuctionStart() {
         auctionStartHandler = rawJson -> {
-            ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+            ObjectMapper mapper = new ObjectMapper()
+                    .registerModule(new JavaTimeModule())
+                    .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
             try {
                 ObjectNode node = (ObjectNode) mapper.readTree(rawJson);
                 String type = node.get("type").asText();
                 Platform.runLater(() -> {
-                    if (type.equals("START_AUCTION")) {
-                        StartAuctionMessage msg = null;
+                    if ("START_AUCTION".equals(type)) {
                         try {
-                            msg = mapper.readValue(rawJson, StartAuctionMessage.class);
+                            StartAuctionMessage msg = mapper.readValue(rawJson, StartAuctionMessage.class);
                             baseprice.setText(Double.toString(msg.startingPrice));
                             increment.setText(Double.toString(msg.bidIncrement));
                             currentBidIncrement = msg.bidIncrement;
@@ -389,7 +399,7 @@ public class UserInfoController {
     private void subscribeAuction() {
         auctionHandler = json -> {
             ObjectMapper mapper = new ObjectMapper();
-            JsonNode node;
+            JsonNode node = null;
             try {
                 node = mapper.readTree(json);
             } catch (JsonProcessingException e) {
@@ -397,7 +407,7 @@ public class UserInfoController {
             }
             String type = resolveMessageType(node);
             switch (type) {
-                case "AUCTION_STATUS" -> {
+                case ("AUCTION_STATUS") -> {
                     try {
                         AuctionStatusMessage statusMsg = mapper.readValue(json, AuctionStatusMessage.class);
                         Platform.runLater(() -> {
@@ -479,8 +489,9 @@ public class UserInfoController {
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
                     }
+
                 }
-                case "START_AUCTION" -> {
+                case ("START_AUCTION") -> {
                     try {
                         ObjectMapper startMapper = new ObjectMapper()
                                 .registerModule(new JavaTimeModule())
@@ -514,9 +525,10 @@ public class UserInfoController {
                         throw new RuntimeException(e);
                     }
                 }
-                case "AUCTION_RESULT" -> {
+                case ("AUCTION_RESULT") -> {
                     try {
                         AuctionResultMessage result = mapper.readValue(json, AuctionResultMessage.class);
+                        System.out.println("Winner ID: " + result.winnerId);
                         Platform.runLater(() -> {
                             if (result.hasBidder) {
                                 if (result.winnerId.equals(UserSession.getCurrentUser().getId())) {
@@ -552,8 +564,9 @@ public class UserInfoController {
                         throw new RuntimeException(e);
                     }
                 }
-            }
+            };
         };
+
         MessageBus.getInstance().subscribe(auctionHandler);
     }
     private void subscribeDepositResult() {
@@ -563,7 +576,7 @@ public class UserInfoController {
                 JsonNode node = mapper.readTree(rawJson);
                 String type = node.get("type").asText();
 
-                if (type.equals("BALANCE_OK") && node.has("amount")) {
+                if ("BALANCE_OK".equals(type) && node.has("amount")) {
                     double latestBalance = node.get("amount").asDouble();
                     currentBalance = latestBalance;
 
@@ -578,7 +591,7 @@ public class UserInfoController {
                     return;
                 }
 
-                if (type.equals("deposit_OK") && node.has("payloadJson")) {
+                if ("deposit_OK".equals(type) && node.has("payloadJson")) {
                     String payloadjson = node.get("payloadJson").asText();
                     Gson gson = new Gson();
                     JsonNode payloadJsonNode = mapper.readTree(payloadjson);
@@ -617,7 +630,7 @@ public class UserInfoController {
 
                 String requestId = node.path("request_id").asText("");
                 String userId = node.path("user_id").asText("");
-                String status = node.path("status").asText(MyRequest.STATUS_WAITING);
+                String status = node.path("status").asText(Statuses.WAITING);
 
                 User currentUser = UserSession.getCurrentUser();
                 if (currentUser == null || requestId.isBlank()) {
@@ -627,8 +640,6 @@ public class UserInfoController {
                 if (!userId.isBlank() && !currentUser.getId().equals(userId)) {
                     return;
                 }
-
-                myrequest.updateRequestStatus(requestId, status);
 
                 Platform.runLater(() -> {
                     try {
@@ -757,33 +768,28 @@ public class UserInfoController {
             try {
                 JsonNode node = mapper.readTree(rawJson);
                 String type = node.get("type").asText();
-                if  (type.equals("remove_item_OK") && node.has("payloadJson")) {
-                    String  payloadjson = node.get("payloadJson").asText();
-                    Gson gson = new Gson();
-                    RemoveRequestpayload payload = gson.fromJson(payloadjson ,  RemoveRequestpayload.class);
-                    String request_id = payload.getRequest_id();
-                    if (request_id == null || request_id.isBlank()) {
+                if ("remove_item_OK".equals(type) && node.has("payloadJson")) {
+                    String payloadjson = node.get("payloadJson").asText();
+                    RemoveRequestpayload payload = new Gson().fromJson(payloadjson, RemoveRequestpayload.class);
+                    String requestId = payload.getRequest_id();
+                    if (requestId == null || requestId.isBlank()) {
                         showAlert(Alert.AlertType.WARNING, "Loi", "Khong nhan duoc request_id hop le");
                         return;
                     }
 
-                    myrequest.remove_request(request_id);
                     Platform.runLater(() -> {
-                        AcceptedItem_info.remove(request_id);
-                        AcceptedItem_info.clear();
                         try {
-                            loaduser_request();// load lại request
+                            loaduser_request();
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-                        showAlert(Alert.AlertType.INFORMATION,"ok", "remove item successfully");
+                        showAlert(Alert.AlertType.INFORMATION, "ok", "remove item successfully");
                     });
+                } else if ("remove_item_fail".equals(type)) {
+                    showAlert(Alert.AlertType.WARNING, "khong thanh cong", "item is now in auction or not but you cannot");
                 }
-                else if( type.equals("remove_item_fail"))
-                    showAlert(Alert.AlertType.WARNING , "khong thanh cong" , "item is now in auction or not but you cannot");
 
             } catch (IOException e) {
-
                 e.printStackTrace();
             }
         };
@@ -995,27 +1001,43 @@ public class UserInfoController {
             ObjectMapper mapper = new  ObjectMapper();
             try{
                 JsonNode node = mapper.readTree(rawJson);
-                String type =  node.get("type").asText();
-                Platform.runLater(()->{
-                    if (type.equals("add_item_OK") && node.has("payloadJson")) {
-                        String payloadJson = node.get("payloadJson").asText();
-                        Createitempayload payload =  new Gson().fromJson(payloadJson, Createitempayload.class);
-                        Gson gson = new Gson();
-                        String payloadjson = gson.toJson(payload);
-                        Message msg = new Message();
-                        msg.Id_user = UserSession.getCurrentUser().getId();
-                        msg.messageType = "additem";
-                        msg.payloadJson = payloadjson;
-                        String requestId = node.has("request_id") ? node.get("request_id").asText() : null;
-
+                String type = node.get("type").asText();
+                Platform.runLater(() -> {
+                    if ("add_item_OK".equals(type) && node.has("payloadJson")) {
                         try {
-                            myrequest.save_myrequest(msg, requestId);
-                            if (requestId != null) {
-                                AcceptedItem_info.add(requestId);
-                            }
+                            loaduser_request();
                         } catch (IOException e) {
-                            e.printStackTrace();
+                            throw new RuntimeException(e);
                         }
+                    }
+                    List_AcceptedItem.setItems(AcceptedItem_info);
+                    List_AcceptedItem.setCellFactory(lv -> new CustomItemCell());
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        };
+        MessageBus.getInstance().subscribe(AdditemResultHandler);
+    }
+
+    private void subscribeUserRequestList() {
+        userRequestListHandler = rawJson -> {
+            ObjectMapper mapper = new ObjectMapper();
+            try {
+                JsonNode node = mapper.readTree(rawJson);
+                String type = resolveMessageType(node);
+
+                if (!"USER_REQUEST_LIST_DATA".equals(type)) {
+                    return;
+                }
+
+                UserRequestListResponse response = mapper.readValue(rawJson, UserRequestListResponse.class);
+
+                Platform.runLater(() -> {
+                    AcceptedItem_info.clear();
+
+                    if (response.requests != null) {
+                        AcceptedItem_info.addAll(response.requests);
                     }
                     List_AcceptedItem.setItems(AcceptedItem_info);// listview load item từ AcceptedItem_info
                     // set up cell factory -> để tạo ra 1 dòng chứa nhiều loại icon và button tương tác
@@ -1027,6 +1049,7 @@ public class UserInfoController {
         };
         MessageBus.getInstance().subscribe(AdditemResultHandler);
     }
+
     private void showAlert(Alert.AlertType type, String title, String content) {
         Alert alert = new Alert(type);
         alert.setTitle(title);
@@ -1035,25 +1058,14 @@ public class UserInfoController {
         alert.showAndWait();
     }
     public void loaduser_request() throws IOException {
-        if (List_AcceptedItem == null) {
+        User currentUser = UserSession.getCurrentUser();
+        if (currentUser == null) {
             return;
         }
-        List<MyRequest.RequestRecord> requests = myrequest.getMyRequestsByType("additem");
 
-        AcceptedItem_info.clear();
-        for (MyRequest.RequestRecord request : requests) {
-            User currentUser = UserSession.getCurrentUser();
-            if (currentUser != null && !currentUser.getId().equals(request.userId())) {
-                continue;
-            }
-            if (request.requestId() != null) {
-                AcceptedItem_info.add(request.requestId());
-            }
-        }
-
-        List_AcceptedItem.setItems(AcceptedItem_info);
-        List_AcceptedItem.setCellFactory(lv -> new CustomItemCell());
+        UserSession.getConnection().send(new FetchUserRequestsRequest(currentUser.getId(), "additem"));
     }
+
     private List<Item> parseItemsFromJson(JsonNode arrayNode) {
         List<Item> items = new ArrayList<>();
         if (arrayNode == null || !arrayNode.isArray()) return items;
@@ -1083,66 +1095,56 @@ public class UserInfoController {
         return items;
     }
 }
-// custom khung cho hiện thị ở list item ,
-class CustomItemCell extends ListCell<String>{
-    private HBox content;
-    private Label name_item;
-    private Button View_info;
-    private Button remove_item;
-    private Pane spacer;
-    private final RequestLog requestLog = new RequestLog();
-    private final MyRequest myrequest = new MyRequest();
+
+class CustomItemCell extends ListCell<RequestRecordDto> {
+    private final HBox content;
+    private final Label nameItem;
+    private final Button viewInfo;
+    private final Button removeItem;
     private final Gson gson = new Gson();
 
-    public CustomItemCell(){
+    public CustomItemCell() {
         super();
-        name_item = new Label();
-        View_info = new Button("view");
-        remove_item = new Button("remove");
+        nameItem = new Label();
+        viewInfo = new Button("view");
+        removeItem = new Button("remove");
 
-        // spacer sẽ là khoản trắng để tạo khoảng cách cho các tác vụ
-        // đưa 2 nút button về bên phải -> tách ra khỏi label name
-
-        spacer = new Pane();
+        Pane spacer = new Pane();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        content = new HBox(10, name_item , spacer , View_info, remove_item);
+        content = new HBox(10, nameItem, spacer, viewInfo, removeItem);
         content.setAlignment(Pos.CENTER_LEFT);
 
-        View_info.setOnAction(event ->{
-            String requestId = getItem();
-            if (requestId == null) {
+        viewInfo.setOnAction(event -> {
+            RequestRecordDto request = getItem();
+            if (request == null) {
                 return;
             }
-            try {
-                MyRequest.RequestRecord request = myrequest.findByRequestId(requestId);
-                if (request == null) {
-                    return;
-                }
-                Createitempayload payload = gson.fromJson(request.requestInfo(), Createitempayload.class);
-                Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.setTitle("Thong tin item");
-                alert.setHeaderText(payload.getItem_name());
-                alert.setContentText(
-                        "Request ID: " + request.requestId() + "\n" +
-                                "User ID: " + request.userId() + "\n" +
-                                "Type: " + payload.getItemType() + "\n" +
-                                "Base price: " + payload.getBasePrice() + "\n" +
-                                "Increment: " + payload.getBidIncrement() + "\n" +
-                                "Info: " + payload.getItemInfo() + "\n" +
-                                "Status: " + request.status() + "\n" +
-                                "Time: " + request.time()
-                );
-                alert.showAndWait();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
-        remove_item.setOnAction(event ->{
-            String item = getItem();// trả về id_request
 
-            Gson gson = new Gson();
-            RemoveRequestpayload payload = new RemoveRequestpayload(item , myrequest.getStatusById(item));
+            Createitempayload payload = gson.fromJson(request.requestInfo, Createitempayload.class);
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Thong tin item");
+            alert.setHeaderText(payload.getItem_name());
+            alert.setContentText(
+                    "Request ID: " + request.requestId + "\n" +
+                            "User ID: " + request.userId + "\n" +
+                            "Type: " + payload.getItemType() + "\n" +
+                            "Base price: " + payload.getBasePrice() + "\n" +
+                            "Increment: " + payload.getBidIncrement() + "\n" +
+                            "Info: " + payload.getItemInfo() + "\n" +
+                            "Status: " + request.status + "\n" +
+                            "Time: " + request.time
+            );
+            alert.showAndWait();
+        });
+
+        removeItem.setOnAction(event -> {
+            RequestRecordDto request = getItem();
+            if (request == null) {
+                return;
+            }
+
+            RemoveRequestpayload payload = new RemoveRequestpayload(request.requestId, request.status);
             String payloadjson = gson.toJson(payload);
 
             Message msg = new Message();
@@ -1151,29 +1153,18 @@ class CustomItemCell extends ListCell<String>{
             msg.payloadJson = payloadjson;
 
             UserSession.getConnection().send(msg);
-            System.out.println("đã xóa item khỏi history");
         });
-
-
     }
+
     @Override
-    protected void updateItem(String item , boolean empty){// javafx AUTO call it
-        super.updateItem(item, empty);
-        if(item!=null && !empty){
-            try {
-                RequestLog.RequestRecord request = requestLog.findByRequestId(item);
-                if (request != null) {
-                    Createitempayload payload = gson.fromJson(request.requestInfo(), Createitempayload.class);
-                    name_item.setText(payload.getItem_name());
-                } else {
-                    name_item.setText(item);
-                }
-            } catch (IOException e) {
-                name_item.setText(item);
-            }
+    protected void updateItem(RequestRecordDto request, boolean empty) {
+        super.updateItem(request, empty);
+        if (request != null && !empty) {
+            Createitempayload payload = gson.fromJson(request.requestInfo, Createitempayload.class);
+            nameItem.setText(payload.getItem_name());
             setGraphic(content);
-        }
-        else
+        } else {
             setGraphic(null);
+        }
     }
 }
