@@ -694,6 +694,7 @@ public class UserInfoController {
     }
 
     private void switchMainScene(ActionEvent event, String viewFileName, String title) throws IOException {
+        cleanup();
         Parent root = ViewLoader.load(viewFileName);
         Scene scene = new Scene(root);
 
@@ -707,6 +708,7 @@ public class UserInfoController {
     @FXML
     public void handle_sign_out(ActionEvent event) throws IOException {
         UserSession.clear();
+        cleanup();
         Parent root = ViewLoader.load("SignIn.fxml");
         Scene scene = new Scene(root);
 
@@ -803,9 +805,9 @@ public class UserInfoController {
             if (amount <= 0) {
                 throw new IllegalArgumentException("Amount must be positive");
             }
-//            if (currentSellerId != null && currentSellerId.equals(UserSession.getCurrentUser().getId())) {
-//                throw new IllegalArgumentException("You cannot bid on your own item");
-//            }
+            if (currentSellerId != null && currentSellerId.equals(UserSession.getCurrentUser().getId())) {
+                throw new IllegalArgumentException("You cannot bid on your own item");
+            }
             if (amount < startingPrice + currentBidIncrement) {
                 throw new IllegalArgumentException("Minimum bid: " + (startingPrice + currentBidIncrement));
             }
@@ -961,6 +963,24 @@ public class UserInfoController {
         };
         MessageBus.getInstance().subscribe(change_infoResultHandler);
     }
+    public void cleanup() {
+        if (depositResultHandler != null)
+            MessageBus.getInstance().unsubscribe(depositResultHandler);
+        if (change_infoResultHandler != null)
+            MessageBus.getInstance().unsubscribe(change_infoResultHandler);
+        if (AdditemResultHandler != null)
+            MessageBus.getInstance().unsubscribe(AdditemResultHandler);
+        if (auctionStartHandler != null)
+            MessageBus.getInstance().unsubscribe(auctionStartHandler);
+        if (removeitemHandler != null)
+            MessageBus.getInstance().unsubscribe(removeitemHandler);
+        if (actionAcceptedHandler != null)
+            MessageBus.getInstance().unsubscribe(actionAcceptedHandler);
+        if (auctionHandler != null)
+            MessageBus.getInstance().unsubscribe(auctionHandler);
+        if (timeline != null) timeline.stop();
+    }
+
     public void subscribeAdditemResult(){
         AdditemResultHandler = rawJson -> {
             ObjectMapper mapper = new  ObjectMapper();
