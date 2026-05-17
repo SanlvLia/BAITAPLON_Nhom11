@@ -30,10 +30,10 @@
                     </font>
                 </Label>
                 <Region HBox.hgrow="ALWAYS" />
-                <Button mnemonicParsing="false" onAction="#showProfile" prefHeight="38.0" prefWidth="112.0" style="-fx-background-color: transparent; -fx-border-color: #ea580c; -fx-border-radius: 14; -fx-background-radius: 14; -fx-text-fill: #ea580c; -fx-font-weight: bold;" text="Profile" />
-                <Button mnemonicParsing="false" onAction="#showRequests" prefHeight="38.0" prefWidth="112.0" style="-fx-background-color: #ea580c; -fx-background-radius: 14; -fx-text-fill: white; -fx-font-weight: bold;" text="Requests" />
-                <Button mnemonicParsing="false" onAction="#showInventory" prefHeight="38.0" prefWidth="116.0" style="-fx-background-color: transparent; -fx-border-color: #ea580c; -fx-border-radius: 14; -fx-background-radius: 14; -fx-text-fill: #ea580c; -fx-font-weight: bold;" text="Inventory" />
-                <Button mnemonicParsing="false" onAction="#showBidding" prefHeight="38.0" prefWidth="132.0" style="-fx-background-color: transparent; -fx-border-color: #0f172a; -fx-border-radius: 14; -fx-background-radius: 14; -fx-text-fill: #0f172a; -fx-font-weight: bold;" text="Bidding space" />
+                <Button fx:id="profileNavButton" mnemonicParsing="false" onAction="#showProfile" prefHeight="38.0" prefWidth="112.0" style="-fx-background-color: transparent; -fx-border-color: #ea580c; -fx-border-radius: 14; -fx-background-radius: 14; -fx-text-fill: #ea580c; -fx-font-weight: bold;" text="Profile" />
+                <Button fx:id="requestsNavButton" mnemonicParsing="false" onAction="#showRequests" prefHeight="38.0" prefWidth="112.0" style="-fx-background-color: transparent; -fx-border-color: #ea580c; -fx-border-radius: 14; -fx-background-radius: 14; -fx-text-fill: #ea580c; -fx-font-weight: bold;" text="Requests" />
+                <Button fx:id="inventoryNavButton" mnemonicParsing="false" onAction="#showInventory" prefHeight="38.0" prefWidth="116.0" style="-fx-background-color: transparent; -fx-border-color: #ea580c; -fx-border-radius: 14; -fx-background-radius: 14; -fx-text-fill: #ea580c; -fx-font-weight: bold;" text="Inventory" />
+                <Button fx:id="biddingNavButton" mnemonicParsing="false" onAction="#showBidding" prefHeight="38.0" prefWidth="132.0" style="-fx-background-color: transparent; -fx-border-color: #ea580c; -fx-border-radius: 14; -fx-background-radius: 14; -fx-text-fill: #ea580c; -fx-font-weight: bold;" text="Bidding space" />
             </children>
         </HBox>
 

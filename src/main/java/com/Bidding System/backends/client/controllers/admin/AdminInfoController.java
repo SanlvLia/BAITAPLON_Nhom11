@@ -62,6 +62,18 @@ public class AdminInfoController {
     private Tab adminBiddingTab;
 
     @FXML
+    private Button profileNavButton;
+
+    @FXML
+    private Button requestsNavButton;
+
+    @FXML
+    private Button inventoryNavButton;
+
+    @FXML
+    private Button biddingNavButton;
+
+    @FXML
     private TextField infoname;
 
     @FXML
@@ -134,6 +146,11 @@ public class AdminInfoController {
 
     private Item itemAuction = null;
 
+    private static final String ACTIVE_NAV_STYLE =
+            "-fx-background-color: #ea580c; -fx-background-radius: 14; -fx-text-fill: white; -fx-font-weight: bold;";
+    private static final String INACTIVE_NAV_STYLE =
+            "-fx-background-color: transparent; -fx-border-color: #ea580c; -fx-border-radius: 14; -fx-background-radius: 14; -fx-text-fill: #ea580c; -fx-font-weight: bold;";
+
     private final java.util.Map<String, Long> currentEndTimeEpochs = new java.util.HashMap<>();
 
     private volatile boolean isRestoringSelection = false;
@@ -153,6 +170,9 @@ public class AdminInfoController {
         requestlist.setCellFactory(ls -> new CustomItemRequestCell(selectedRequestIds));
         requestlist.setItems(item_wait_accepted); // Khóa cứng list vào giao diện
 
+        adminTabs.getSelectionModel().selectedItemProperty().addListener((observable, oldTab, newTab) -> updateNavButtonStyles());
+        updateNavButtonStyles();
+
         loadrequest();
         subscribeuser_RequestResult();
         subcribeAuctionController();
@@ -169,21 +189,43 @@ public class AdminInfoController {
     @FXML
     public void showProfile(ActionEvent event) {
         adminTabs.getSelectionModel().select(adminProfileTab);
+        updateNavButtonStyles();
     }
 
     @FXML
     public void showRequests(ActionEvent event) {
         adminTabs.getSelectionModel().select(adminRequestsTab);
+        updateNavButtonStyles();
     }
 
     @FXML
     public void showInventory(ActionEvent event) {
         adminTabs.getSelectionModel().select(adminInventoryTab);
+        updateNavButtonStyles();
     }
 
     @FXML
     public void showBidding(ActionEvent event) {
         adminTabs.getSelectionModel().select(adminBiddingTab);
+        updateNavButtonStyles();
+    }
+
+    private void updateNavButtonStyles() {
+        if (adminTabs == null) {
+            return;
+        }
+
+        Tab selectedTab = adminTabs.getSelectionModel().getSelectedItem();
+        setNavButtonActive(profileNavButton, selectedTab == adminProfileTab);
+        setNavButtonActive(requestsNavButton, selectedTab == adminRequestsTab);
+        setNavButtonActive(inventoryNavButton, selectedTab == adminInventoryTab);
+        setNavButtonActive(biddingNavButton, selectedTab == adminBiddingTab);
+    }
+
+    private void setNavButtonActive(Button button, boolean active) {
+        if (button != null) {
+            button.setStyle(active ? ACTIVE_NAV_STYLE : INACTIVE_NAV_STYLE);
+        }
     }
 
     private void subcribeAuctionController() {
@@ -435,10 +477,21 @@ public class AdminInfoController {
         Scene scene = new Scene(root);
 
         Stage window = (Stage) ((Node) event.getSource()).getScene().getWindow();
+        resetLoginWindowSize(window);
         window.setScene(scene);
         window.setTitle("Sign in");
+        window.sizeToScene();
         window.centerOnScreen();
         window.show();
+    }
+
+    private void resetLoginWindowSize(Stage window) {
+        window.setFullScreen(false);
+        window.setMaximized(false);
+        window.setMinWidth(0);
+        window.setMinHeight(0);
+        window.setWidth(450);
+        window.setHeight(500);
     }
 
     private void loadInventoryData() {

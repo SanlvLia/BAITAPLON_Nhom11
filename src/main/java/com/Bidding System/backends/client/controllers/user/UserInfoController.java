@@ -593,12 +593,21 @@ public class UserInfoController {
         Scene scene = new Scene(root);
 
         Stage window = (Stage) ((Node) event.getSource()).getScene().getWindow();
-        window.setMaximized(false);
+        resetLoginWindowSize(window);
         window.setScene(scene);
         window.setTitle("Sign in");
         window.sizeToScene();
         window.centerOnScreen();
         window.show();
+    }
+
+    private void resetLoginWindowSize(Stage window) {
+        window.setFullScreen(false);
+        window.setMaximized(false);
+        window.setMinWidth(0);
+        window.setMinHeight(0);
+        window.setWidth(450);
+        window.setHeight(500);
     }
 
     private void fitToVisibleScreen(Stage stage) {
